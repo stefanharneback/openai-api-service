@@ -1,0 +1,70 @@
+import { describe, it, expect } from "vitest";
+import { parseResponseSse } from "../src/lib/sse.js";
+
+describe("parseResponseSse", () => {
+  it("parses a response.completed event and extracts usage", () => {
+    const sseText = [
+      "event: response.output_text.delta",
+      'data: {"type":"response.output_text.delta","delta":"Hello"}',
+      "",
+      "event: response.output_text.done",
+      'data: {"type":"response.output_text.done","text":"Hello world"}',
+      "",
+      "event: response.completed",
+      `data: {"type":"response.completed","response":{"id":"resp_1","output_text":"Hello world","usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}}`,
+      "",
+      "data: [DONE]",
+      "",
+    ].join("\n");
+
+    const result = parseResponseSse(sseText);
+    expect(result.responseText).toBe("Hello world");
+    expect(result.usage.inputTokens).toBe(10);
+    expect(result.usage.outputTokens).toBe(5);
+    expect(result.usage.totalTokens).toBe(15);
+    expect(result.finalPayload).toBeTruthy();
+  });
+
+  it("accumulates multiple output_text.done events", () => {
+    const sseText = [
+      "event: response.output_text.done",
+      'data: {"type":"response.output_text.done","text":"Part A"}',
+      "",
+      "event: response.output_text.done",
+      'data: {"type":"response.output_text.done","text":" Part B"}',
+      "",
+      "event: response.completed",
+      `data: {"type":"response.completed","response":{"id":"resp_2","usage":{"input_tokens":20,"output_tokens":10}}}`,
+      "",
+    ].join("\n");
+
+    const result = parseResponseSse(sseText);
+    expect(result.responseText).toBe("Part A Part B");
+  });
+
+  it("returns empty usage for unparseable SSE", () => {
+    const result = parseResponseSse("not valid sse at all");
+    expect(result.usage.inputTokens).toBeNull();
+    expect(result.usage.outputTokens).toBeNull();
+    expect(result.responseText).toBeNull();
+    expect(result.finalPayload).toBeNull();
+  });
+
+  it("handles [DONE] marker", () => {
+    const sseText = "data: [DONE]\n\n";
+    const result = parseResponseSse(sseText);
+    expect(result.finalPayload).toBeNull();
+  });
+
+  it("falls back to response.completed text if no output_text.done events", () => {
+    const sseText = [
+      "event: response.completed",
+      `data: {"type":"response.completed","response":{"id":"resp_3","output_text":"Directly here","usage":{"input_tokens":5,"output_tokens":2}}}`,
+      "",
+    ].join("\n");
+
+    const result = parseResponseSse(sseText);
+    expect(result.responseText).toBe("Directly here");
+    expect(result.usage.inputTokens).toBe(5);
+  });
+});
