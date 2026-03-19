@@ -13,8 +13,9 @@ const run = async (): Promise<void> => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-5.4",
+      model: "gpt-5.4-mini",
       input: "Summarize why server-side API gateways are useful in three bullets.",
+      include: ["output_text"],
       stream: false,
     }),
   });

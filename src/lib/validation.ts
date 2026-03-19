@@ -5,23 +5,46 @@ import { HttpError } from "./errors.js";
 
 const inputContentSchema = z.union([
   z.string().min(1),
-  z.array(z.record(z.any())).min(1),
+  z.array(z.unknown()).min(1),
 ]);
 
-// Mirrors the fields accepted by the OpenAI Responses API.
-// See: https://platform.openai.com/docs/api-reference/responses/create
+const unknownObjectSchema = z.record(z.string(), z.unknown());
+
+// Validate the gateway's required core fields but pass through additional
+// Responses API fields so the service stays compatible with current releases.
+// See: https://developers.openai.com/api/reference/resources/responses/methods/create
 export const llmBodySchema = z.object({
   model: z.string().min(1),
   input: inputContentSchema,
   instructions: z.string().min(1).optional(),
-  reasoning: z.record(z.any()).optional(),
-  tools: z.array(z.record(z.any())).optional(),
-  temperature: z.number().min(0).max(2).optional(),
-  max_output_tokens: z.number().int().positive().max(128000).optional(),
-  metadata: z.record(z.string()).optional(),
+  background: z.boolean().optional(),
+  include: z.array(z.string()).optional(),
+  max_tool_calls: z.number().int().positive().optional(),
+  metadata: unknownObjectSchema.optional(),
+  parallel_tool_calls: z.boolean().optional(),
+  previous_response_id: z.string().min(1).optional(),
+  prompt: z.unknown().optional(),
+  reasoning: unknownObjectSchema.optional(),
+  safety_identifier: z.string().max(64).optional(),
+  service_tier: z.enum(["auto", "default", "flex", "scale", "priority"]).optional(),
+  store: z.boolean().optional(),
   stream: z.boolean().optional(),
-  text: z.record(z.any()).optional(),
-  tool_choice: z.union([z.string(), z.record(z.any())]).optional(),
+  stream_options: unknownObjectSchema.optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  text: unknownObjectSchema.optional(),
+  tool_choice: z.union([z.string(), unknownObjectSchema]).optional(),
+  tools: z.array(z.unknown()).optional(),
+  top_p: z.number().min(0).max(1).optional(),
+  truncation: z.unknown().optional(),
+  max_output_tokens: z.number().int().positive().max(128000).optional(),
+}).passthrough().superRefine((value, ctx) => {
+  if (value.stream_options && !value.stream) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "stream_options requires stream=true.",
+      path: ["stream_options"],
+    });
+  }
 });
 
 export const usageQuerySchema = z.object({

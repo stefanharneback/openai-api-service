@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run check
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Add coverage summary to workflow run
+        shell: bash
+        run: |
+          node <<'EOF'
+          const fs = require('node:fs');
+          const summaryPath = 'coverage/coverage-summary.json';
+          const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8')).total;
+          const lines = [
+            '## Coverage',
+            '',
+            '| Metric | Percent | Covered / Total |',
+            '| --- | ---: | ---: |',
+            `| Lines | ${summary.lines.pct}% | ${summary.lines.covered} / ${summary.lines.total} |`,
+            `| Statements | ${summary.statements.pct}% | ${summary.statements.covered} / ${summary.statements.total} |`,
+            `| Functions | ${summary.functions.pct}% | ${summary.functions.covered} / ${summary.functions.total} |`,
+            `| Branches | ${summary.branches.pct}% | ${summary.branches.covered} / ${summary.branches.total} |`,
+          ];
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+          EOF
+
+      - name: Upload HTML coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: coverage
+          if-no-files-found: error
+
+      - name: Upload coverage to Codecov
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          fail_ci_if_error: true

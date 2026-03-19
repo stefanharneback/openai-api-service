@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock env before importing the modules under test.
 vi.mock("../src/lib/env.js", () => ({
   env: {
-    modelAllowlist: new Set(["gpt-5.4", "gpt-5-mini-2025-08-07"]),
+    modelAllowlist: new Set(["gpt-5.4", "gpt-5.4-mini", "gpt-4o-transcribe"]),
     maxJsonBodyBytes: 256 * 1024,
     maxAudioBytes: 10 * 1024 * 1024,
   },
@@ -26,12 +26,29 @@ describe("llmBodySchema", () => {
       model: "gpt-5.4",
       input: "Hello",
       instructions: "Be helpful",
+      background: true,
+      include: ["output_text"],
+      previous_response_id: "resp_123",
+      service_tier: "flex",
       temperature: 0.7,
       max_output_tokens: 1024,
       stream: true,
-      metadata: { user: "test" },
+      stream_options: { include_usage: true },
+      metadata: { user: "test", score: 1 },
     });
     expect(result.success).toBe(true);
+  });
+
+  it("passes through additional current Responses fields", () => {
+    const result = llmBodySchema.safeParse({
+      model: "gpt-5.4-mini",
+      input: "Hello",
+      conversation: "conv_123",
+      prompt: { id: "pmpt_123" },
+      truncation: { type: "auto" },
+    });
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveProperty("conversation", "conv_123");
   });
 
   it("rejects missing model", () => {
@@ -69,6 +86,15 @@ describe("llmBodySchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects stream_options when stream is not enabled", () => {
+    const result = llmBodySchema.safeParse({
+      model: "gpt-5.4",
+      input: "Hi",
+      stream_options: { include_usage: true },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("usageQuerySchema", () => {
@@ -93,6 +119,7 @@ describe("usageQuerySchema", () => {
 describe("ensureAllowedModel", () => {
   it("passes for an allowed model", () => {
     expect(() => ensureAllowedModel("gpt-5.4")).not.toThrow();
+    expect(() => ensureAllowedModel("gpt-5.4-mini")).not.toThrow();
   });
 
   it("throws HttpError 403 for a disallowed model", () => {

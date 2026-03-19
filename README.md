@@ -23,7 +23,7 @@ Vercel-first TypeScript gateway for OpenAI text and speech-to-text APIs with Pos
         (requests · request_usage)
 ```
 
-Every request is proxied to OpenAI, and the full request/response, token count, and estimated cost are recorded in PostgreSQL. The OpenAI API key stays on the server.
+Every request is proxied to OpenAI, and the full request/response, token count, and estimated cost are recorded in PostgreSQL. The OpenAI API key stays on the server. The gateway intentionally uses native `fetch` so JSON and SSE payloads can be relayed with minimal transformation.
 
 ## What this service does
 
@@ -31,6 +31,7 @@ Every request is proxied to OpenAI, and the full request/response, token count, 
 - Keeps the OpenAI API key on the server side.
 - Supports text generation through the [Responses API](https://platform.openai.com/docs/api-reference/responses).
 - Supports speech-to-text through the [Audio API](https://platform.openai.com/docs/api-reference/audio/createTranscription).
+- Transparently forwards additional current Responses API fields beyond the gateway's core validation.
 - Stores per-request usage, estimated cost, and full prompt/response payloads in PostgreSQL.
 - Supports optional application-level AES-256-GCM encryption of stored ledger payloads.
 
@@ -110,7 +111,7 @@ npm run dev
 curl -X POST http://localhost:3000/v1/llm \
   -H "Authorization: Bearer <your-api-key-from-step-4>" \
   -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.4","input":"Hello, what is 2+2?"}'
+  -d '{"model":"gpt-5.4-mini","input":"Hello, what is 2+2?","include":["output_text"]}'
 ```
 
 ### 7. Check usage
@@ -127,6 +128,17 @@ npm test              # single run
 npm run test:watch    # watch mode
 npm run test:coverage # with V8 coverage
 ```
+
+## CI and coverage on GitHub
+
+This repository includes a GitHub Actions workflow at `.github/workflows/ci.yml`.
+
+- It runs on every push, on pull requests targeting `main`, and on manual dispatch.
+- It executes `npm run check` and `npm run test:coverage`.
+- Each workflow run publishes a coverage summary in the GitHub Actions run summary.
+- Each workflow run also uploads the full HTML coverage report as a downloadable artifact.
+
+If you want richer pull request coverage reporting, commit-to-commit coverage tracking, or badges, add a repository secret named `CODECOV_TOKEN`. The workflow will then upload `coverage/lcov.info` to Codecov automatically.
 
 ## Environment variables
 
@@ -152,6 +164,14 @@ npm run test:coverage # with V8 coverage
 | GET    | `/v1/admin/usage`| Admin key     | Usage history across all clients.     |
 
 See [openapi.yaml](openapi.yaml) for the full API contract including request/response schemas.
+
+## Responses passthrough policy
+
+`POST /v1/llm` validates the required core request contract (`model`, `input`, body size, and selected high-signal fields such as `stream_options`) and then forwards additional Responses API fields transparently. This keeps the gateway aligned with newer OpenAI request parameters without forcing frequent schema churn.
+
+## Cost estimation coverage
+
+Estimated cost is currently mapped for `gpt-5.4`, `gpt-5.4-mini`, the legacy `gpt-5-mini-2025-08-07` snapshot alias, and `gpt-4o-transcribe`. Requests for other models are still logged, but `total_cost_usd` remains `null` until that model's pricing is mapped explicitly.
 
 ## Security note about storing prompts and responses
 
@@ -198,6 +218,9 @@ tests/                   Vitest unit and integration tests
 examples/
   typescript-client/     Minimal TypeScript client example
   dotnet-client/         Minimal .NET client example
+.github/
+  workflows/
+    ci.yml               GitHub Actions CI for type-check, tests, and coverage
 ```
 
 ## Deployment note for Vercel free tier

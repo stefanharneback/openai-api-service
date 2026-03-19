@@ -15,8 +15,9 @@ http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer
 
 var payload = new
 {
-    model = "gpt-5.4",
+    model = "gpt-5.4-mini",
     input = "Summarize why server-side API gateways are useful in three bullets.",
+    include = new[] { "output_text" },
     stream = false
 };
 

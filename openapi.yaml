@@ -19,46 +19,79 @@ components:
   schemas:
     LlmRequest:
       type: object
+      additionalProperties: true
       required: [model, input]
+      description: |
+        Core validation is applied to `model`, `input`, and selected high-signal fields.
+        Additional current Responses API fields are forwarded transparently to reduce drift.
       properties:
         model:
           type: string
-          description: "OpenAI model ID, e.g. gpt-5.4 or gpt-5-mini-2025-08-07"
+          description: "OpenAI model ID, e.g. gpt-5.4 or gpt-5.4-mini"
         input:
           oneOf:
             - type: string
             - type: array
-              items:
-                type: object
+              items: {}
         instructions:
           type: string
-        reasoning:
-          type: object
-        tools:
+        background:
+          type: boolean
+        include:
           type: array
           items:
-            type: object
+            type: string
+        max_tool_calls:
+          type: integer
+          minimum: 1
+        metadata:
+          type: object
+          additionalProperties: true
+        parallel_tool_calls:
+          type: boolean
+        previous_response_id:
+          type: string
+        prompt: {}
+        reasoning:
+          type: object
+          additionalProperties: true
+        safety_identifier:
+          type: string
+        service_tier:
+          type: string
+          enum: [auto, default, flex, scale, priority]
+        store:
+          type: boolean
+        stream_options:
+          type: object
+          additionalProperties: true
+        tools:
+          type: array
+          items: {}
         temperature:
           type: number
           minimum: 0
           maximum: 2
+        top_p:
+          type: number
+          minimum: 0
+          maximum: 1
         max_output_tokens:
           type: integer
           minimum: 1
           maximum: 128000
-        metadata:
-          type: object
-          additionalProperties:
-            type: string
         stream:
           type: boolean
           description: "If true, response is sent as Server-Sent Events."
         text:
           type: object
+          additionalProperties: true
         tool_choice:
           oneOf:
             - type: string
             - type: object
+              additionalProperties: true
+        truncation: {}
     ErrorResponse:
       type: object
       required: [error]
@@ -106,6 +139,9 @@ components:
     UsageResponse:
       type: object
       properties:
+        clientId:
+          type: string
+          format: uuid
         items:
           type: array
           items:
@@ -158,6 +194,7 @@ paths:
       description: |
         Forwards the request body to OpenAI's Responses API (`POST /v1/responses`).
         When `stream: true`, the response is returned as Server-Sent Events (SSE).
+        Additional Responses API fields are forwarded transparently beyond the gateway's core validation.
         The gateway records the full request/response, token usage, and estimated cost.
       security:
         - bearerAuth: []
@@ -212,7 +249,7 @@ paths:
               properties:
                 model:
                   type: string
-                  description: "e.g. whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe"
+                  description: "e.g. gpt-4o-transcribe, gpt-4o-mini-transcribe, whisper-1"
                 file:
                   type: string
                   format: binary

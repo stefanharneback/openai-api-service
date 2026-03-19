@@ -29,21 +29,43 @@ describe("estimateCost", () => {
     expect(result!.outputCostUsd).toBe(15);
     expect(result!.cachedInputCostUsd).toBe(0);
     expect(result!.totalCostUsd).toBe(17.5);
-    expect(result!.pricingVersion).toBe("2026-03-17");
+    expect(result!.pricingVersion).toBe("2026-03-18");
   });
 
-  it("calculates cost for gpt-5-mini-2025-08-07", () => {
+  it("calculates cost for gpt-5.4-mini", () => {
     const usage = makeUsage({
       inputTokens: 2_000_000,
       outputTokens: 500_000,
       cachedInputTokens: 1_000_000,
     });
+    const result = estimateCost("gpt-5.4-mini", usage);
+    expect(result).not.toBeNull();
+    expect(result!.inputCostUsd).toBe(1.5);
+    expect(result!.outputCostUsd).toBe(2.25);
+    expect(result!.cachedInputCostUsd).toBe(0.075);
+    expect(result!.totalCostUsd).toBe(3.825);
+  });
+
+  it("keeps a legacy mini snapshot alias on the current pricing", () => {
+    const usage = makeUsage({
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
     const result = estimateCost("gpt-5-mini-2025-08-07", usage);
     expect(result).not.toBeNull();
-    expect(result!.inputCostUsd).toBe(0.5);
-    expect(result!.outputCostUsd).toBe(1);
-    expect(result!.cachedInputCostUsd).toBe(0.025);
-    expect(result!.totalCostUsd).toBe(1.525);
+    expect(result!.totalCostUsd).toBe(5.25);
+  });
+
+  it("calculates cost for gpt-4o-transcribe", () => {
+    const usage = makeUsage({
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+    });
+    const result = estimateCost("gpt-4o-transcribe", usage);
+    expect(result).not.toBeNull();
+    expect(result!.inputCostUsd).toBe(6);
+    expect(result!.outputCostUsd).toBe(5);
+    expect(result!.totalCostUsd).toBe(11);
   });
 
   it("handles zero tokens", () => {
@@ -57,17 +79,14 @@ describe("estimateCost", () => {
     expect(result!.totalCostUsd).toBe(0);
   });
 
-  it("handles null tokens gracefully", () => {
+  it("returns null when token usage is unavailable", () => {
     const usage = makeUsage();
     const result = estimateCost("gpt-5.4", usage);
-    expect(result).not.toBeNull();
-    expect(result!.inputCostUsd).toBe(0);
-    expect(result!.outputCostUsd).toBe(0);
-    expect(result!.totalCostUsd).toBe(0);
+    expect(result).toBeNull();
   });
 
   it("returns null for audio models (no pricing entry)", () => {
     expect(estimateCost("whisper-1", makeUsage())).toBeNull();
-    expect(estimateCost("gpt-4o-transcribe", makeUsage())).toBeNull();
+    expect(estimateCost("gpt-4o-mini-transcribe", makeUsage())).toBeNull();
   });
 });

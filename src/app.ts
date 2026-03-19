@@ -25,6 +25,47 @@ type Variables = {
 
 const app = new Hono<{ Variables: Variables }>();
 
+const emptyUsage = {
+  inputTokens: null,
+  outputTokens: null,
+  cachedInputTokens: null,
+  reasoningTokens: null,
+  totalTokens: null,
+} as const;
+
+const buildStreamFailure = (
+  upstreamOk: boolean,
+  terminalEvent: string | null,
+  errorCode: string | null,
+  errorMessage: string | null,
+): { code: string | null; message: string | null } => {
+  if (!upstreamOk) {
+    return {
+      code: errorCode ?? "openai_stream_error",
+      message: errorMessage ?? "Streaming request failed.",
+    };
+  }
+
+  if (terminalEvent === "response.failed") {
+    return {
+      code: errorCode ?? "openai_stream_failed",
+      message: errorMessage ?? "Streaming response failed.",
+    };
+  }
+
+  if (terminalEvent === "response.incomplete") {
+    return {
+      code: errorCode ?? "openai_stream_incomplete",
+      message: errorMessage ?? "Streaming response ended incomplete.",
+    };
+  }
+
+  return {
+    code: null,
+    message: null,
+  };
+};
+
 app.use("*", cors());
 
 app.use("*", async (c, next) => {
@@ -105,37 +146,53 @@ app.post("/v1/llm", async (c) => {
   const [clientStream, auditStream] = upstreamResponse.body.tee();
   const sseTextPromise = new Response(auditStream).text();
 
-  queueMicrotask(async () => {
-    const sseText = await sseTextPromise;
-    const parsedSse = parseResponseSse(sseText);
-    const cost = estimateCost(parsedBody.model, parsedSse.usage);
+  void (async () => {
+    try {
+      const sseText = await sseTextPromise;
+      const parsedSse = parseResponseSse(sseText);
+      const cost = estimateCost(parsedBody.model, parsedSse.usage);
+      const streamFailure = buildStreamFailure(
+        upstreamResponse.ok,
+        parsedSse.terminalEvent,
+        parsedSse.errorCode,
+        parsedSse.errorMessage,
+      );
 
-    await recordRequest({
-      requestId: state.requestId,
-      auth,
-      endpoint: "/v1/llm",
-      method: "POST",
-      model: parsedBody.model,
-      openaiRequestId: upstreamRequestId,
-      httpStatus: upstreamResponse.status,
-      upstreamStatus: upstreamResponse.status,
-      durationMs: Date.now() - state.startedAt,
-      usage: parsedSse.usage,
-      cost,
-      payload: {
-        requestBody: parsedBody,
-        responseBody: parsedSse.finalPayload ?? { streamed: true },
-        responseText: parsedSse.responseText,
-        responseSse: sseText,
-        requestHeaders: {},
-        responseHeaders,
-      },
-      errorCode: upstreamResponse.ok ? null : "openai_stream_error",
-      errorMessage: upstreamResponse.ok ? null : "Streaming request failed.",
-      audioBytes: null,
-      audioSource: null,
-    });
-  });
+      await recordRequest({
+        requestId: state.requestId,
+        auth,
+        endpoint: "/v1/llm",
+        method: "POST",
+        model: parsedBody.model,
+        openaiRequestId: upstreamRequestId,
+        httpStatus: upstreamResponse.status,
+        upstreamStatus: upstreamResponse.status,
+        durationMs: Date.now() - state.startedAt,
+        usage: parsedSse.usage,
+        cost,
+        payload: {
+          requestBody: parsedBody,
+          responseBody: parsedSse.finalPayload ?? {
+            streamed: true,
+            terminalEvent: parsedSse.terminalEvent,
+          },
+          responseText: parsedSse.responseText,
+          responseSse: sseText,
+          requestHeaders: {},
+          responseHeaders,
+        },
+        errorCode: streamFailure.code,
+        errorMessage: streamFailure.message,
+        audioBytes: null,
+        audioSource: null,
+      });
+    } catch (error) {
+      console.error("Failed to persist streamed request audit.", {
+        requestId: state.requestId,
+        error,
+      });
+    }
+  })();
 
   return new Response(clientStream, {
     status: upstreamResponse.status,
@@ -260,11 +317,7 @@ app.post("/v1/whisper", async (c) => {
     upstreamStatus: upstreamResponse.status,
     durationMs: Date.now() - state.startedAt,
     usage: {
-      inputTokens: null,
-      outputTokens: null,
-      cachedInputTokens: null,
-      reasoningTokens: null,
-      totalTokens: null,
+      ...emptyUsage,
     },
     cost: null,
     payload: {
@@ -343,11 +396,7 @@ app.onError(async (error, c) => {
       upstreamStatus: null,
       durationMs: Date.now() - state.startedAt,
       usage: {
-        inputTokens: null,
-        outputTokens: null,
-        cachedInputTokens: null,
-        reasoningTokens: null,
-        totalTokens: null,
+        ...emptyUsage,
       },
       cost: null,
       payload,
