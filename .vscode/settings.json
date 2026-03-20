@@ -1,0 +1,25 @@
+{
+  "chat.useAgentsMdFile": true,
+  "chat.promptFilesRecommendations": true,
+  "github.copilot.chat.reviewSelection.instructions": [
+    {
+      "file": ".github/copilot-instructions.md"
+    },
+    {
+      "file": ".github/instructions/testing.instructions.md"
+    }
+  ],
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "file": "AGENTS.md"
+    }
+  ],
+  "github.copilot.chat.pullRequestDescriptionGeneration.instructions": [
+    {
+      "file": "AGENTS.md"
+    },
+    {
+      "file": ".github/copilot-instructions.md"
+    }
+  ]
+}

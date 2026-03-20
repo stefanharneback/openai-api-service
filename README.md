@@ -140,6 +140,18 @@ This repository includes a GitHub Actions workflow at `.github/workflows/ci.yml`
 
 If you want richer pull request coverage reporting, commit-to-commit coverage tracking, or badges, add a repository secret named `CODECOV_TOKEN`. The workflow will then upload `coverage/lcov.info` to Codecov automatically.
 
+## AI workflow baseline
+
+This repository now includes a layered AI baseline for VS Code, GitHub Copilot, Gemini Code Assist, Codex, and agent-first editors such as Antigravity.
+
+- [AGENTS.md](AGENTS.md) is the primary repository contract.
+- [docs/ai-workflow.md](docs/ai-workflow.md) describes the plan -> implement -> verify -> review workflow.
+- [docs/maintenance-cadence.md](docs/maintenance-cadence.md) defines the monthly and quarterly maintenance checklist.
+- `.github/copilot-instructions.md` provides repository-wide Copilot instructions.
+- `.github/instructions/`, `.github/prompts/`, and `.github/agents/` provide reusable file-scoped instructions, prompt files, and custom agents for current VS Code/Copilot workflows.
+- `.vscode/mcp.json` and `.vscode/settings.json` provide shared workspace defaults without hardcoding secrets.
+- `.aiexclude` keeps generated files, secrets, and local-only artifacts out of Gemini Code Assist context.
+
 ## Environment variables
 
 | Variable               | Required | Description                                                   |
@@ -219,8 +231,19 @@ examples/
   typescript-client/     Minimal TypeScript client example
   dotnet-client/         Minimal .NET client example
 .github/
+  copilot-instructions.md Repository-wide Copilot instructions
+  agents/                Workspace custom agents for planning, implementation, review
+  instructions/          Pattern-based instruction files for VS Code/Copilot
+  prompts/               Reusable prompt files for common tasks
   workflows/
     ci.yml               GitHub Actions CI for type-check, tests, and coverage
+.vscode/
+  mcp.json               Shared workspace MCP server configuration
+  settings.json          Workspace AI settings for review, commit, and PR generation
+  tasks.json             Shared verification tasks
+docs/
+  ai-workflow.md         Editor-neutral AI and agent workflow guide
+  maintenance-cadence.md Monthly and quarterly maintenance checklist
 ```
 
 ## Deployment note for Vercel free tier
