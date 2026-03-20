@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { env, hashApiKey } from "./env.js";
 import { HttpError } from "./errors.js";
 import { sql } from "./db.js";
@@ -48,7 +50,10 @@ export const authenticateClient = async (
 
 export const authorizeAdmin = (authorizationHeader: string | undefined): void => {
   const token = getBearerToken(authorizationHeader);
-  if (token !== env.serviceAdminKey) {
+  const expected = env.serviceAdminKey;
+  const a = Buffer.from(token);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     throw new HttpError(403, "forbidden", "Admin key is invalid.");
   }
 };

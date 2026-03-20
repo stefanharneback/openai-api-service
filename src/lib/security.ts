@@ -33,17 +33,26 @@ export const maybeDecryptJson = <T>(payload: unknown): T => {
     return payload as T;
   }
 
-  const encrypted = payload as EncryptedValue;
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    env.ledgerEncryptionKey,
-    Buffer.from(encrypted.iv, "base64"),
-  );
-  decipher.setAuthTag(Buffer.from(encrypted.tag, "base64"));
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(encrypted.value, "base64")),
-    decipher.final(),
-  ]);
+  const record = payload as EncryptedValue;
+  if (record?.alg !== "aes-256-gcm") {
+    return payload as T;
+  }
 
-  return JSON.parse(decrypted.toString("utf8")) as T;
+  try {
+    const encrypted = payload as EncryptedValue;
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      env.ledgerEncryptionKey,
+      Buffer.from(encrypted.iv, "base64"),
+    );
+    decipher.setAuthTag(Buffer.from(encrypted.tag, "base64"));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(encrypted.value, "base64")),
+      decipher.final(),
+    ]);
+
+    return JSON.parse(decrypted.toString("utf8")) as T;
+  } catch {
+    throw new Error("Failed to decrypt ledger payload. Data may be corrupted or key mismatch.");
+  }
 };

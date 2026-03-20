@@ -7,9 +7,10 @@ vi.mock("../src/lib/env.js", () => ({
   },
 }));
 
-// Mock DNS at top level (Vitest hoists vi.mock calls regardless of position).
+// Capture the mock for DNS so tests can override behavior per-test.
+const lookupMock = vi.hoisted(() => vi.fn().mockResolvedValue([{ address: "10.0.0.1", family: 4 }]));
 vi.mock("node:dns/promises", () => ({
-  lookup: vi.fn().mockResolvedValue([{ address: "10.0.0.1", family: 4 }]),
+  lookup: lookupMock,
 }));
 
 import { fetchRemoteAudio } from "../src/lib/urlFetch.js";
@@ -34,5 +35,28 @@ describe("fetchRemoteAudio — SSRF protection", () => {
 describe("fetchRemoteAudio — private IP detection", () => {
   it("rejects a URL that resolves to a private IP", async () => {
     await expect(fetchRemoteAudio("https://evil.example.com/audio.wav")).rejects.toThrow(HttpError);
+  });
+});
+
+describe("fetchRemoteAudio — DNS timeout", () => {
+  it("succeeds when DNS resolves to a public IP and fetch returns OK", async () => {
+    lookupMock.mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }]);
+
+    const fakeAudio = new Uint8Array([0xff, 0xfb, 0x90, 0x00]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        new Response(fakeAudio, {
+          status: 200,
+          headers: { "content-type": "audio/mpeg" },
+        }),
+      ),
+    );
+
+    const result = await fetchRemoteAudio("https://example.com/audio.mp3");
+    expect(result.contentType).toBe("audio/mpeg");
+    expect(result.bytes.byteLength).toBe(4);
+
+    vi.unstubAllGlobals();
   });
 });

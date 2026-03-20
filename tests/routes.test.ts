@@ -346,4 +346,124 @@ describe("route success paths", () => {
       offset: 2,
     });
   });
+
+  it("handles non-JSON whisper responses (plain text transcription)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response("Hello, this is a transcription.", {
+        status: 200,
+        headers: {
+          "content-type": "text/plain",
+          "x-request-id": "audio_txt_1",
+        },
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("model", "whisper-1");
+    formData.set("file", new File(["audio"], "clip.wav", { type: "audio/wav" }));
+    formData.set("response_format", "text");
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("Hello, this is a transcription.");
+    await waitForBackgroundWork();
+
+    expect(recordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoint: "/v1/whisper",
+        model: "whisper-1",
+        payload: expect.objectContaining({
+          responseText: "Hello, this is a transcription.",
+        }),
+      }),
+    );
+  });
+
+  it("handles OpenAI error responses from /v1/llm (non-streaming)", async () => {
+    const errorPayload = {
+      error: {
+        code: "model_not_found",
+        message: "The model does not exist.",
+      },
+    };
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(errorPayload), {
+        status: 404,
+        headers: {
+          "content-type": "application/json",
+          "x-request-id": "up_err_1",
+        },
+      }),
+    );
+
+    const res = await request("/v1/llm", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer client-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-5.4", input: "test" }),
+    });
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error.code).toBe("model_not_found");
+
+    expect(recordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        httpStatus: 404,
+        errorCode: "model_not_found",
+        errorMessage: "The model does not exist.",
+      }),
+    );
+  });
+
+  it("proxies /v1/whisper via audio_url using fetchRemoteAudio", async () => {
+    const upstreamPayload = { text: "remote transcribed" };
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(upstreamPayload), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "x-request-id": "audio_url_1",
+        },
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("model", "whisper-1");
+    formData.set("audio_url", "https://example.com/audio.mp3");
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(200);
+    expect(fetchRemoteAudio).toHaveBeenCalledWith("https://example.com/audio.mp3");
+  });
+
+  it("returns admin usage from /v1/admin/usage", async () => {
+    listUsageForAdmin.mockResolvedValueOnce([
+      { id: "req_a1", endpoint: "/v1/llm", model: "gpt-5.4" },
+    ]);
+
+    const res = await request("/v1/admin/usage?limit=5&offset=0", {
+      headers: { Authorization: "Bearer admin-key" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.limit).toBe(5);
+    expect(body.offset).toBe(0);
+  });
 });

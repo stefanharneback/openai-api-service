@@ -20,7 +20,7 @@ vi.mock("../src/lib/db.js", () => ({
   ),
 }));
 
-import { getBearerToken } from "../src/lib/auth.js";
+import { getBearerToken, authorizeAdmin } from "../src/lib/auth.js";
 import { HttpError } from "../src/lib/errors.js";
 
 describe("getBearerToken", () => {
@@ -52,6 +52,40 @@ describe("getBearerToken", () => {
       getBearerToken("Bearer ");
     } catch (e) {
       expect((e as HttpError).code).toBe("invalid_auth");
+    }
+  });
+});
+
+describe("authorizeAdmin", () => {
+  it("succeeds with the correct admin key", () => {
+    expect(() => authorizeAdmin("Bearer super-secret-admin-key")).not.toThrow();
+  });
+
+  it("throws 403 with an incorrect admin key", () => {
+    expect(() => authorizeAdmin("Bearer wrong-key")).toThrow(HttpError);
+    try {
+      authorizeAdmin("Bearer wrong-key");
+    } catch (e) {
+      expect((e as HttpError).status).toBe(403);
+      expect((e as HttpError).code).toBe("forbidden");
+    }
+  });
+
+  it("throws 403 when the key has different length (timing-safe)", () => {
+    expect(() => authorizeAdmin("Bearer x")).toThrow(HttpError);
+    try {
+      authorizeAdmin("Bearer x");
+    } catch (e) {
+      expect((e as HttpError).status).toBe(403);
+    }
+  });
+
+  it("throws 401 when authorization header is missing", () => {
+    expect(() => authorizeAdmin(undefined)).toThrow(HttpError);
+    try {
+      authorizeAdmin(undefined);
+    } catch (e) {
+      expect((e as HttpError).status).toBe(401);
     }
   });
 });

@@ -48,7 +48,12 @@ export const fetchRemoteAudio = async (
     throw new HttpError(400, "invalid_audio_url", "Localhost URLs are not allowed.");
   }
 
-  const resolved = await lookup(url.hostname, { all: true });
+  const resolved = await Promise.race([
+    lookup(url.hostname, { all: true }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new HttpError(400, "audio_fetch_failed", "DNS lookup timed out.")), 5_000),
+    ),
+  ]);
   if (resolved.some((entry) => isIP(entry.address) && isPrivateAddress(entry.address))) {
     throw new HttpError(400, "invalid_audio_url", "Private network targets are not allowed.");
   }

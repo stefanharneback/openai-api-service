@@ -68,3 +68,33 @@ describe("maybeEncryptJson with no key", () => {
     expect(decrypted).toEqual(original);
   });
 });
+
+describe("maybeDecryptJson error handling", () => {
+  it("throws a descriptive error when ciphertext is corrupted", () => {
+    const corrupted = {
+      alg: "aes-256-gcm" as const,
+      iv: "AAAAAAAAAAAAAAAA",
+      tag: "AAAAAAAAAAAAAAAAAAAAAA==",
+      value: "corrupted_not_valid_base64!!!!",
+    };
+
+    expect(() => maybeDecryptJson(corrupted)).toThrow(
+      "Failed to decrypt ledger payload",
+    );
+  });
+
+  it("throws a descriptive error when auth tag is wrong", () => {
+    // Encrypt a value then tamper with the tag
+    const encrypted = maybeEncryptJson({ secret: true }) as {
+      alg: string;
+      iv: string;
+      tag: string;
+      value: string;
+    };
+    const tampered = { ...encrypted, tag: Buffer.from("wrong-tag-value!").toString("base64") };
+
+    expect(() => maybeDecryptJson(tampered)).toThrow(
+      "Failed to decrypt ledger payload",
+    );
+  });
+});
