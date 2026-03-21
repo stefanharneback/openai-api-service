@@ -71,7 +71,11 @@ export const estimateCost = (
     return null;
   }
 
-  const inputCostUsd = toUsd(usage.inputTokens, pricing.inputPerMillion);
+  const uncachedInputTokens =
+    usage.inputTokens === null
+      ? null
+      : Math.max(usage.inputTokens - (usage.cachedInputTokens ?? 0), 0);
+  const inputCostUsd = toUsd(uncachedInputTokens, pricing.inputPerMillion);
   const outputCostUsd = toUsd(usage.outputTokens, pricing.outputPerMillion);
   const cachedInputCostUsd = toUsd(
     usage.cachedInputTokens,

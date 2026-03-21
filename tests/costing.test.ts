@@ -40,10 +40,10 @@ describe("estimateCost", () => {
     });
     const result = estimateCost("gpt-5.4-mini", usage);
     expect(result).not.toBeNull();
-    expect(result!.inputCostUsd).toBe(1.5);
+    expect(result!.inputCostUsd).toBe(0.75);
     expect(result!.outputCostUsd).toBe(2.25);
     expect(result!.cachedInputCostUsd).toBe(0.075);
-    expect(result!.totalCostUsd).toBe(3.825);
+    expect(result!.totalCostUsd).toBe(3.075);
   });
 
   it("keeps a legacy mini snapshot alias on the current pricing", () => {
@@ -77,6 +77,16 @@ describe("estimateCost", () => {
     const result = estimateCost("gpt-5.4", usage);
     expect(result).not.toBeNull();
     expect(result!.totalCostUsd).toBe(0);
+  });
+
+  it("never bills negative uncached input tokens", () => {
+    const usage = makeUsage({
+      inputTokens: 100,
+      cachedInputTokens: 200,
+    });
+    const result = estimateCost("gpt-5.4", usage);
+    expect(result).not.toBeNull();
+    expect(result!.inputCostUsd).toBe(0);
   });
 
   it("returns null when token usage is unavailable", () => {

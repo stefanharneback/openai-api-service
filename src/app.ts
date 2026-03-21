@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { ZodError } from "zod";
 
-import { authenticateClient, authorizeAdmin } from "./lib/auth.js";
+import { authenticateClient, authorizeAdmin, authorizeRetention } from "./lib/auth.js";
 import { log } from "./lib/logger.js";
 import { checkRateLimit } from "./lib/rateLimit.js";
 import { estimateCost } from "./lib/costing.js";
@@ -69,6 +70,14 @@ const buildStreamFailure = (
   };
 };
 
+const parseJsonRequestBody = (rawBody: string): unknown => {
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    throw new HttpError(400, "invalid_json", "Request body must be valid JSON.");
+  }
+};
+
 app.use("*", cors());
 
 app.use("*", async (c, next) => {
@@ -97,7 +106,7 @@ app.post("/v1/llm", async (c) => {
 
   const rawBody = await c.req.text();
   ensureJsonBodySize(rawBody);
-  const parsedBody = llmBodySchema.parse(JSON.parse(rawBody));
+  const parsedBody = llmBodySchema.parse(parseJsonRequestBody(rawBody));
   ensureAllowedModel(parsedBody.model);
 
   const upstreamResponse = await fetch(`${openAiBaseUrl}/responses`, {
@@ -375,10 +384,22 @@ app.post("/v1/admin/retention", async (c) => {
   return c.json({ purged });
 });
 
+app.get("/v1/admin/retention", async (c) => {
+  authorizeRetention(c.req.header("authorization"));
+  const purged = await purgeOldRecords();
+  return c.json({ purged });
+});
+
 app.onError(async (error, c) => {
   const state = c.get("state");
   const httpError = isHttpError(error)
     ? error
+    : error instanceof ZodError
+      ? new HttpError(
+          400,
+          "validation_error",
+          error.issues[0]?.message ?? "Request validation failed.",
+        )
     : new HttpError(500, "internal_error", "Internal server error.");
 
   const payload: LedgerPayload = {

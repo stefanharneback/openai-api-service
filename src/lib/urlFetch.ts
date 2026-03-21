@@ -4,6 +4,9 @@ import { isIP } from "node:net";
 import { HttpError } from "./errors.js";
 import { ensureAudioSize } from "./validation.js";
 
+const dnsLookupTimeoutMs = 5_000;
+const maxRedirects = 5;
+
 const privateIpv4Prefixes = [
   "10.",
   "127.",
@@ -35,11 +38,7 @@ const isPrivateAddress = (address: string): boolean => {
   return privateIpv4Prefixes.some((prefix) => address.startsWith(prefix));
 };
 
-export const fetchRemoteAudio = async (
-  urlValue: string,
-): Promise<{ fileName: string; contentType: string; bytes: Uint8Array }> => {
-  const url = new URL(urlValue);
-
+const validateRemoteUrl = async (url: URL): Promise<void> => {
   if (!["https:", "http:"].includes(url.protocol)) {
     throw new HttpError(400, "invalid_audio_url", "Only HTTP(S) URLs are allowed.");
   }
@@ -51,33 +50,70 @@ export const fetchRemoteAudio = async (
   const resolved = await Promise.race([
     lookup(url.hostname, { all: true }),
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new HttpError(400, "audio_fetch_failed", "DNS lookup timed out.")), 5_000),
+      setTimeout(() => reject(new HttpError(400, "audio_fetch_failed", "DNS lookup timed out.")), dnsLookupTimeoutMs),
     ),
   ]);
   if (resolved.some((entry) => isIP(entry.address) && isPrivateAddress(entry.address))) {
     throw new HttpError(400, "invalid_audio_url", "Private network targets are not allowed.");
   }
+};
 
-  const response = await fetch(url, {
-    redirect: "follow",
-    headers: {
-      "User-Agent": "openai-api-service/0.1",
-    },
-  });
+const fetchRemoteUrl = async (url: URL): Promise<Response> => {
+  try {
+    return await fetch(url, {
+      redirect: "manual",
+      headers: {
+        "User-Agent": "openai-api-service/0.1",
+      },
+    });
+  } catch {
+    throw new HttpError(400, "audio_fetch_failed", "Remote audio fetch failed.");
+  }
+};
 
-  if (!response.ok) {
-    throw new HttpError(
-      400,
-      "audio_fetch_failed",
-      `Remote audio fetch failed with status ${response.status}.`,
-    );
+export const fetchRemoteAudio = async (
+  urlValue: string,
+): Promise<{ fileName: string; contentType: string; bytes: Uint8Array }> => {
+  let currentUrl = new URL(urlValue);
+
+  for (let redirects = 0; redirects <= maxRedirects; redirects += 1) {
+    await validateRemoteUrl(currentUrl);
+
+    const response = await fetchRemoteUrl(currentUrl);
+    const location = response.headers.get("location");
+    if (location && response.status >= 300 && response.status < 400) {
+      if (redirects === maxRedirects) {
+        throw new HttpError(
+          400,
+          "audio_fetch_failed",
+          `Remote audio fetch exceeded ${maxRedirects} redirects.`,
+        );
+      }
+
+      currentUrl = new URL(location, currentUrl);
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new HttpError(
+        400,
+        "audio_fetch_failed",
+        `Remote audio fetch failed with status ${response.status}.`,
+      );
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    ensureAudioSize(bytes.byteLength);
+
+    const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+    const fileName = currentUrl.pathname.split("/").pop() || "audio";
+
+    return { bytes, contentType, fileName };
   }
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  ensureAudioSize(bytes.byteLength);
-
-  const contentType = response.headers.get("content-type") ?? "application/octet-stream";
-  const fileName = url.pathname.split("/").pop() || "audio";
-
-  return { bytes, contentType, fileName };
+  throw new HttpError(
+    400,
+    "audio_fetch_failed",
+    `Remote audio fetch exceeded ${maxRedirects} redirects.`,
+  );
 };

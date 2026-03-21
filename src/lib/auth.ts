@@ -18,6 +18,19 @@ export const getBearerToken = (authorizationHeader: string | undefined): string 
   return token;
 };
 
+const matchesExpectedToken = (token: string, expected: string | null): boolean => {
+  if (!expected) {
+    return false;
+  }
+
+  const actualBuffer = Buffer.from(token);
+  const expectedBuffer = Buffer.from(expected);
+  return (
+    actualBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(actualBuffer, expectedBuffer)
+  );
+};
+
 export const authenticateClient = async (
   authorizationHeader: string | undefined,
 ): Promise<AuthContext> => {
@@ -50,10 +63,19 @@ export const authenticateClient = async (
 
 export const authorizeAdmin = (authorizationHeader: string | undefined): void => {
   const token = getBearerToken(authorizationHeader);
-  const expected = env.serviceAdminKey;
-  const a = Buffer.from(token);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+  if (!matchesExpectedToken(token, env.serviceAdminKey)) {
     throw new HttpError(403, "forbidden", "Admin key is invalid.");
   }
+};
+
+export const authorizeRetention = (authorizationHeader: string | undefined): void => {
+  const token = getBearerToken(authorizationHeader);
+  if (
+    matchesExpectedToken(token, env.serviceAdminKey) ||
+    matchesExpectedToken(token, env.cronSecret)
+  ) {
+    return;
+  }
+
+  throw new HttpError(403, "forbidden", "Admin or cron key is invalid.");
 };

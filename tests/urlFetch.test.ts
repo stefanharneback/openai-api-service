@@ -61,6 +61,54 @@ describe("fetchRemoteAudio — DNS timeout", () => {
   });
 });
 
+describe("fetchRemoteAudio — redirects", () => {
+  it("follows redirects only after validating the next hop", async () => {
+    lookupMock
+      .mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }])
+      .mockResolvedValueOnce([{ address: "93.184.216.35", family: 4 }]);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(
+          new Response(null, {
+            status: 302,
+            headers: { location: "https://cdn.example.com/final.wav" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: { "content-type": "audio/wav" },
+          }),
+        ),
+    );
+
+    const result = await fetchRemoteAudio("https://example.com/audio.wav");
+    expect(result.fileName).toBe("final.wav");
+    expect(result.contentType).toBe("audio/wav");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects redirects to localhost targets", async () => {
+    lookupMock.mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: "http://localhost/internal.wav" },
+        }),
+      ),
+    );
+
+    await expect(fetchRemoteAudio("https://example.com/audio.wav")).rejects.toThrow(HttpError);
+
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("fetchRemoteAudio — IPv6 private addresses", () => {
   it("rejects fc00::/7 (ULA) addresses", async () => {
     lookupMock.mockResolvedValueOnce([{ address: "fd12::1", family: 6 }]);

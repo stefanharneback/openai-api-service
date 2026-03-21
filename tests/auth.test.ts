@@ -5,6 +5,7 @@ vi.mock("../src/lib/env.js", () => ({
   env: {
     apiKeySalt: "test-salt",
     serviceAdminKey: "super-secret-admin-key",
+    cronSecret: "cron-job-secret",
   },
   hashApiKey: (key: string) => {
     const { createHash } = require("node:crypto");
@@ -20,7 +21,7 @@ vi.mock("../src/lib/db.js", () => ({
   ),
 }));
 
-import { getBearerToken, authorizeAdmin } from "../src/lib/auth.js";
+import { getBearerToken, authorizeAdmin, authorizeRetention } from "../src/lib/auth.js";
 import { HttpError } from "../src/lib/errors.js";
 
 describe("getBearerToken", () => {
@@ -86,6 +87,26 @@ describe("authorizeAdmin", () => {
       authorizeAdmin(undefined);
     } catch (e) {
       expect((e as HttpError).status).toBe(401);
+    }
+  });
+});
+
+describe("authorizeRetention", () => {
+  it("accepts the admin key", () => {
+    expect(() => authorizeRetention("Bearer super-secret-admin-key")).not.toThrow();
+  });
+
+  it("accepts the cron secret", () => {
+    expect(() => authorizeRetention("Bearer cron-job-secret")).not.toThrow();
+  });
+
+  it("rejects unrelated keys", () => {
+    expect(() => authorizeRetention("Bearer wrong-key")).toThrow(HttpError);
+    try {
+      authorizeRetention("Bearer wrong-key");
+    } catch (e) {
+      expect((e as HttpError).status).toBe(403);
+      expect((e as HttpError).code).toBe("forbidden");
     }
   });
 });

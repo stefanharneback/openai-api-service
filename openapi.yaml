@@ -167,7 +167,12 @@ components:
           type: integer
         offset:
           type: integer
-paths:
+    PurgeResponse:
+      type: object
+      properties:
+        purged:
+          type: integer
+  paths:
   /health:
     get:
       summary: Health check
@@ -231,6 +236,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/whisper:
     post:
       summary: Proxy an OpenAI transcription request
@@ -274,6 +285,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '413':
           description: Audio file too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
           content:
             application/json:
               schema:
@@ -337,6 +354,55 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminUsageResponse'
+        '403':
+          description: Forbidden — invalid admin key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/admin/retention:
+    get:
+      summary: Purge expired ledger rows
+      description: Accepts the SERVICE_ADMIN_KEY or CRON_SECRET as the bearer token.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Number of purged request rows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurgeResponse'
+        '401':
+          description: Missing bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — invalid admin or cron key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Purge expired ledger rows manually
+      description: Requires the SERVICE_ADMIN_KEY as the bearer token.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Number of purged request rows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurgeResponse'
+        '401':
+          description: Missing bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: Forbidden — invalid admin key
           content:

@@ -18,6 +18,7 @@ const cleanEnv = () => {
     "OPENAI_API_KEY",
     "DATABASE_URL",
     "SERVICE_ADMIN_KEY",
+    "CRON_SECRET",
     "API_KEY_SALT",
     "MODEL_ALLOWLIST",
     "MAX_AUDIO_BYTES",
@@ -41,7 +42,14 @@ describe("env module", () => {
     expect(env.openAiApiKey).toBe("sk-test-key");
     expect(env.databaseUrl).toBe("postgres://localhost:5432/test");
     expect(env.serviceAdminKey).toBe("admin-key");
+    expect(env.cronSecret).toBeNull();
     expect(env.apiKeySalt).toBe("test-salt");
+  });
+
+  it("parses CRON_SECRET when configured", async () => {
+    setupEnv({ CRON_SECRET: "cron-key" });
+    const { env } = await import("../src/lib/env.js");
+    expect(env.cronSecret).toBe("cron-key");
   });
 
   it("throws when a required variable is missing", async () => {

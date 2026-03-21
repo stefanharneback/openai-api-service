@@ -5,6 +5,7 @@ import { HttpError } from "../src/lib/errors.js";
 const {
   authenticateClient,
   authorizeAdmin,
+  authorizeRetention,
   recordRequest,
   listUsageForClient,
   listUsageForAdmin,
@@ -14,6 +15,7 @@ const {
 } = vi.hoisted(() => ({
   authenticateClient: vi.fn(),
   authorizeAdmin: vi.fn(),
+  authorizeRetention: vi.fn(),
   recordRequest: vi.fn(),
   listUsageForClient: vi.fn(),
   listUsageForAdmin: vi.fn(),
@@ -25,6 +27,7 @@ const {
 vi.mock("../src/lib/auth.js", () => ({
   authenticateClient,
   authorizeAdmin,
+  authorizeRetention,
 }));
 
 vi.mock("../src/lib/env.js", () => ({
@@ -32,6 +35,7 @@ vi.mock("../src/lib/env.js", () => ({
     openAiApiKey: "sk-test-key",
     databaseUrl: "postgres://localhost:5432/unused",
     serviceAdminKey: "admin-key",
+    cronSecret: "cron-key",
     apiKeySalt: "salt",
     modelAllowlist: new Set([
       "gpt-5.4",
@@ -90,6 +94,12 @@ describe("route success paths", () => {
     authorizeAdmin.mockImplementation((authorizationHeader?: string) => {
       if (authorizationHeader !== "Bearer admin-key") {
         throw new HttpError(403, "forbidden", "Admin key is invalid.");
+      }
+    });
+
+    authorizeRetention.mockImplementation((authorizationHeader?: string) => {
+      if (!["Bearer admin-key", "Bearer cron-key"].includes(String(authorizationHeader))) {
+        throw new HttpError(403, "forbidden", "Admin or cron key is invalid.");
       }
     });
 
@@ -234,6 +244,48 @@ describe("route success paths", () => {
         }),
       }),
     );
+  });
+
+  it("returns 400 for malformed JSON request bodies", async () => {
+    const res = await request("/v1/llm", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer client-key",
+        "Content-Type": "application/json",
+      },
+      body: '{"model":"gpt-5.4","input"',
+    });
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({
+      error: {
+        code: "invalid_json",
+        message: "Request body must be valid JSON.",
+        requestId: "req-test-0001",
+      },
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for schema validation errors", async () => {
+    const res = await request("/v1/llm", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer client-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-5.4",
+        input: "Hello",
+        stream_options: { include_usage: true },
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("validation_error");
+    expect(body.error.message).toBe("stream_options requires stream=true.");
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("logs streamed audit failures instead of leaving an unhandled rejection", async () => {
@@ -480,5 +532,30 @@ describe("route success paths", () => {
     expect(body.items).toHaveLength(1);
     expect(body.limit).toBe(5);
     expect(body.offset).toBe(0);
+  });
+
+  it("allows retention purge through GET with the cron secret", async () => {
+    purgeOldRecords.mockResolvedValueOnce(4);
+
+    const res = await request("/v1/admin/retention", {
+      headers: { Authorization: "Bearer cron-key" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ purged: 4 });
+    expect(authorizeRetention).toHaveBeenCalledWith("Bearer cron-key");
+  });
+
+  it("keeps POST retention purge available for admin use", async () => {
+    purgeOldRecords.mockResolvedValueOnce(2);
+
+    const res = await request("/v1/admin/retention", {
+      method: "POST",
+      headers: { Authorization: "Bearer admin-key" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ purged: 2 });
+    expect(authorizeAdmin).toHaveBeenCalledWith("Bearer admin-key");
   });
 });

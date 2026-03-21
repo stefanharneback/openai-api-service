@@ -16,6 +16,7 @@ Vercel-first TypeScript gateway for OpenAI text and speech-to-text APIs with Pos
   │  POST /v1/whisper ───────►  OpenAI Audio API
   │  GET  /v1/usage              │
   │  GET  /v1/admin/usage        │
+  │  GET  /v1/admin/retention    │
   └──────────┬───────────────────┘
              │  record request, usage, cost
              ▼
@@ -34,6 +35,7 @@ Every request is proxied to OpenAI, and the full request/response, token count, 
 - Transparently forwards additional current Responses API fields beyond the gateway's core validation.
 - Stores per-request usage, estimated cost, and full prompt/response payloads in PostgreSQL.
 - Supports optional application-level AES-256-GCM encryption of stored ledger payloads.
+- Applies a per-client 60 requests/minute guard on `/v1/llm` and `/v1/whisper`.
 
 ## V1 scope
 
@@ -88,7 +90,9 @@ Edit `.env` and fill in:
 OPENAI_API_KEY=sk-your-key-here
 DATABASE_URL=postgres://oais:oais_local_dev@localhost:5432/oais
 SERVICE_ADMIN_KEY=pick-any-secret-for-admin
+CRON_SECRET=optional-secret-for-vercel-cron
 API_KEY_SALT=local-dev-salt
+RETENTION_DAYS=90
 ```
 
 ### 4. Seed a test API key
@@ -159,7 +163,9 @@ This repository now includes a layered AI baseline for VS Code, GitHub Copilot, 
 | `OPENAI_API_KEY`       | Yes      | Server-side OpenAI credential.                                |
 | `DATABASE_URL`         | Yes      | PostgreSQL connection string.                                 |
 | `SERVICE_ADMIN_KEY`    | Yes      | Admin bearer token for `/v1/admin/usage`.                     |
+| `CRON_SECRET`          | No       | Bearer token accepted by `GET /v1/admin/retention` for Vercel Cron Jobs. |
 | `API_KEY_SALT`         | Yes      | Salt used to SHA-256 hash client API keys before DB lookup.   |
+| `RETENTION_DAYS`       | No       | Ledger retention window in days (default: 90).                |
 | `LEDGER_ENCRYPTION_KEY`| No       | Base64 or hex encoded 32-byte key for AES-256-GCM encryption. |
 | `MODEL_ALLOWLIST`      | No       | Comma-separated models enabled by policy.                     |
 | `MAX_AUDIO_BYTES`      | No       | Max audio file size (default: 10 MB).                         |
@@ -174,8 +180,12 @@ This repository now includes a layered AI baseline for VS Code, GitHub Copilot, 
 | POST   | `/v1/whisper`    | Client key    | Proxy to OpenAI Audio API.            |
 | GET    | `/v1/usage`      | Client key    | Usage history for the calling client. |
 | GET    | `/v1/admin/usage`| Admin key     | Usage history across all clients.     |
+| GET    | `/v1/admin/retention`| Admin key or `CRON_SECRET` | Purge expired ledger rows; cron-friendly entrypoint. |
+| POST   | `/v1/admin/retention`| Admin key | Purge expired ledger rows manually.   |
 
 See [openapi.yaml](openapi.yaml) for the full API contract including request/response schemas.
+
+`POST /v1/llm` and `POST /v1/whisper` return `429` after 60 requests per minute for the same client key within a single running server instance.
 
 ## Responses passthrough policy
 

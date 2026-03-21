@@ -51,10 +51,16 @@ const parseEncryptionKey = (): Buffer | null => {
   return candidate;
 };
 
+const parseOptionalSecret = (name: string): string | null => {
+  const value = process.env[name]?.trim();
+  return value ? value : null;
+};
+
 export const env = {
   openAiApiKey: requireEnv("OPENAI_API_KEY"),
   databaseUrl: requireEnv("DATABASE_URL"),
   serviceAdminKey: requireEnv("SERVICE_ADMIN_KEY"),
+  cronSecret: parseOptionalSecret("CRON_SECRET"),
   apiKeySalt: requireEnv("API_KEY_SALT"),
   modelAllowlist: parseAllowlist(),
   maxAudioBytes: parseByteLimit("MAX_AUDIO_BYTES", 10 * 1024 * 1024),
