@@ -248,7 +248,7 @@ See [openapi.yaml](openapi.yaml) for the full API contract including request/res
 
 ## Cost estimation coverage
 
-Estimated cost is currently mapped for `gpt-5.4`, `gpt-5.4-mini`, the legacy `gpt-5-mini-2025-08-07` snapshot alias, and `gpt-4o-transcribe`. Requests for other models are still logged, but `total_cost_usd` remains `null` until that model's pricing is mapped explicitly.
+Estimated cost is currently mapped for `gpt-5.4`, `gpt-5.4-mini`, the legacy `gpt-5-mini-2025-08-07` snapshot alias, `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, and `gpt-4o-transcribe-diarize`. Requests for other models are still logged, but `total_cost_usd` remains `null` until that model's pricing is mapped explicitly.
 
 ## Security note about storing prompts and responses
 

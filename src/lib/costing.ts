@@ -7,8 +7,8 @@ type PricingCatalogEntry = {
   cachedInputPerMillion: number;
 };
 
-// Pricing sourced from https://openai.com/api/pricing/ (snapshot date below).
-export const pricingCatalogVersion = "2026-03-18";
+// Pricing sourced from https://developers.openai.com/api/docs/pricing (snapshot date below).
+export const pricingCatalogVersion = "2026-07-22";
 
 const pricingCatalogAgeMs =
   Date.now() - new Date(pricingCatalogVersion).getTime();
@@ -38,7 +38,17 @@ const pricingCatalog: Record<string, PricingCatalogEntry> = {
     cachedInputPerMillion: 0.075,
   },
   "gpt-4o-transcribe": {
-    inputPerMillion: 6,
+    inputPerMillion: 2.5,
+    outputPerMillion: 10,
+    cachedInputPerMillion: 0,
+  },
+  "gpt-4o-mini-transcribe": {
+    inputPerMillion: 1.25,
+    outputPerMillion: 5,
+    cachedInputPerMillion: 0,
+  },
+  "gpt-4o-transcribe-diarize": {
+    inputPerMillion: 2.5,
     outputPerMillion: 10,
     cachedInputPerMillion: 0,
   },

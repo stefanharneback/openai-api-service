@@ -270,7 +270,7 @@ app.post("/v1/whisper", async (c) => {
     }
 
     if (typeof value === "string") {
-      upstreamForm.set(key, value);
+      upstreamForm.append(key, value);
     }
   }
 
@@ -316,6 +316,62 @@ app.post("/v1/whisper", async (c) => {
     });
 
     return c.json(responseJson, upstreamResponse.status as 200);
+  }
+
+  if (contentTypeHeader.includes("text/event-stream")) {
+    if (!upstreamResponse.body) {
+      throw new HttpError(502, "missing_upstream_stream", "Upstream stream was missing.");
+    }
+
+    const [clientStream, auditStream] = upstreamResponse.body.tee();
+    const sseTextPromise = new Response(auditStream).text();
+
+    void (async () => {
+      try {
+        const sseText = await sseTextPromise;
+
+        await recordRequest({
+          requestId: state.requestId,
+          auth,
+          endpoint: "/v1/whisper",
+          method: "POST",
+          model,
+          openaiRequestId: upstreamRequestId,
+          httpStatus: upstreamResponse.status,
+          upstreamStatus: upstreamResponse.status,
+          durationMs: Date.now() - state.startedAt,
+          usage: { ...emptyUsage },
+          cost: null,
+          payload: {
+            requestBody: Object.fromEntries(formData.entries()),
+            responseBody: { streamed: true },
+            responseText: null,
+            responseSse: sseText,
+            requestHeaders: {},
+            responseHeaders,
+          },
+          errorCode: upstreamResponse.ok ? null : "openai_stream_error",
+          errorMessage: upstreamResponse.ok ? null : "Streaming transcription request failed.",
+          audioBytes: audioBytes.byteLength,
+          audioSource,
+        });
+      } catch (error) {
+        log.error("Failed to persist streamed whisper request audit.", {
+          requestId: state.requestId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })();
+
+    return new Response(clientStream, {
+      status: upstreamResponse.status,
+      headers: {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        "x-request-id": state.requestId,
+      },
+    });
   }
 
   const responseText = await upstreamResponse.text();

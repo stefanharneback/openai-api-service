@@ -29,7 +29,7 @@ describe("estimateCost", () => {
     expect(result!.outputCostUsd).toBe(15);
     expect(result!.cachedInputCostUsd).toBe(0);
     expect(result!.totalCostUsd).toBe(17.5);
-    expect(result!.pricingVersion).toBe("2026-03-18");
+    expect(result!.pricingVersion).toBe("2026-07-22");
   });
 
   it("calculates cost for gpt-5.4-mini", () => {
@@ -63,9 +63,9 @@ describe("estimateCost", () => {
     });
     const result = estimateCost("gpt-4o-transcribe", usage);
     expect(result).not.toBeNull();
-    expect(result!.inputCostUsd).toBe(6);
+    expect(result!.inputCostUsd).toBe(2.5);
     expect(result!.outputCostUsd).toBe(5);
-    expect(result!.totalCostUsd).toBe(11);
+    expect(result!.totalCostUsd).toBe(7.5);
   });
 
   it("handles zero tokens", () => {
@@ -95,9 +95,32 @@ describe("estimateCost", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null for audio models (no pricing entry)", () => {
+  it("returns null for audio models without token usage", () => {
     expect(estimateCost("whisper-1", makeUsage())).toBeNull();
-    expect(estimateCost("gpt-4o-mini-transcribe", makeUsage())).toBeNull();
+  });
+
+  it("calculates cost for gpt-4o-mini-transcribe", () => {
+    const usage = makeUsage({
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
+    const result = estimateCost("gpt-4o-mini-transcribe", usage);
+    expect(result).not.toBeNull();
+    expect(result!.inputCostUsd).toBe(1.25);
+    expect(result!.outputCostUsd).toBe(5);
+    expect(result!.totalCostUsd).toBe(6.25);
+  });
+
+  it("calculates cost for gpt-4o-transcribe-diarize", () => {
+    const usage = makeUsage({
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+    });
+    const result = estimateCost("gpt-4o-transcribe-diarize", usage);
+    expect(result).not.toBeNull();
+    expect(result!.inputCostUsd).toBe(2.5);
+    expect(result!.outputCostUsd).toBe(5);
+    expect(result!.totalCostUsd).toBe(7.5);
   });
 
   it("pricing catalog version is less than 90 days old", () => {

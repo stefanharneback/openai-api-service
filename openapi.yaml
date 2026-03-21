@@ -282,7 +282,7 @@ components:
               properties:
                 model:
                   type: string
-                  description: "e.g. gpt-4o-transcribe, gpt-4o-mini-transcribe, whisper-1"
+                  description: "e.g. gpt-4o-transcribe, gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize, whisper-1"
                 file:
                   type: string
                   format: binary
@@ -290,6 +290,9 @@ components:
                   type: string
                   format: uri
                   description: "Remote URL to fetch audio from (alternative to file upload)"
+                stream:
+                  type: boolean
+                  description: "When true, the response is streamed as SSE (text/event-stream). Supported by gpt-4o-transcribe, gpt-4o-mini-transcribe, and gpt-4o-transcribe-diarize."
       responses:
         '200':
           description: OpenAI transcription payload

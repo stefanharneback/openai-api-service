@@ -42,6 +42,7 @@ vi.mock("../src/lib/env.js", () => ({
       "gpt-5.4-mini",
       "gpt-4o-transcribe",
       "gpt-4o-mini-transcribe",
+      "gpt-4o-transcribe-diarize",
       "whisper-1",
     ]),
     maxAudioBytes: 10 * 1024 * 1024,
@@ -378,7 +379,7 @@ describe("route success paths", () => {
         endpoint: "/v1/whisper",
         model: "gpt-4o-transcribe",
         cost: expect.objectContaining({
-          totalCostUsd: 11,
+          totalCostUsd: 7.5,
         }),
       }),
     );
@@ -663,6 +664,37 @@ describe("route success paths", () => {
     expect(forwardedForm.get("model")).toBe("whisper-1");
   });
 
+  it("preserves duplicate-key form fields via append for whisper forwarding", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ text: "diarized" }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "x-request-id": "audio_dup_1",
+        },
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("model", "gpt-4o-transcribe-diarize");
+    formData.set("file", new File(["audio"], "meeting.wav", { type: "audio/wav" }));
+    formData.append("known_speaker_names[]", "Alice");
+    formData.append("known_speaker_names[]", "Bob");
+    formData.set("response_format", "diarized_json");
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(200);
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    const forwardedForm = (init as RequestInit).body as FormData;
+    expect(forwardedForm.getAll("known_speaker_names[]")).toEqual(["Alice", "Bob"]);
+    expect(forwardedForm.get("response_format")).toBe("diarized_json");
+  });
+
   it("records response.failed metadata when upstream status is OK but SSE signals failure", async () => {
     const sseText = [
       "event: response.failed",
@@ -743,5 +775,123 @@ describe("route success paths", () => {
     const body = await res.json();
     expect(body.error.code).toBe("not_found");
     expect(body.error.message).toContain("/v1/nonexistent");
+  });
+
+  it("streams whisper SSE responses and audits in the background", async () => {
+    const sseText = [
+      "event: transcript.text.delta",
+      'data: {"type":"transcript.text.delta","delta":"Hello "}',
+      "",
+      "event: transcript.text.done",
+      'data: {"type":"transcript.text.done","text":"Hello world"}',
+      "",
+    ].join("\n");
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(sseText, {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-request-id": "audio_sse_1",
+        },
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("model", "gpt-4o-mini-transcribe");
+    formData.set("file", new File(["audio"], "clip.wav", { type: "audio/wav" }));
+    formData.set("stream", "true");
+    formData.set("response_format", "text");
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/event-stream");
+    const body = await res.text();
+    expect(body).toContain("transcript.text.done");
+
+    await waitForBackgroundWork();
+
+    expect(recordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoint: "/v1/whisper",
+        model: "gpt-4o-mini-transcribe",
+        payload: expect.objectContaining({
+          responseSse: expect.stringContaining("transcript.text.done"),
+        }),
+      }),
+    );
+  });
+
+  it("returns 502 when whisper upstream stream body is missing", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(null, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("model", "gpt-4o-transcribe");
+    formData.set("file", new File(["audio"], "clip.wav", { type: "audio/wav" }));
+    formData.set("stream", "true");
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error.code).toBe("missing_upstream_stream");
+  });
+
+  it("logs whisper streamed audit failures instead of leaving an unhandled rejection", async () => {
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    recordRequest.mockRejectedValueOnce(new Error("db unavailable"));
+
+    const sseText = [
+      "event: transcript.text.done",
+      'data: {"type":"transcript.text.done","text":"ok"}',
+      "",
+    ].join("\n");
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(sseText, {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-request-id": "audio_sse_err_1",
+        },
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("model", "gpt-4o-transcribe");
+    formData.set("file", new File(["audio"], "clip.wav", { type: "audio/wav" }));
+    formData.set("stream", "true");
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(200);
+    await res.text();
+    await waitForBackgroundWork();
+
+    expect(stderrSpy).toHaveBeenCalled();
+    const logLine = JSON.parse(String(stderrSpy.mock.calls[0][0]));
+    expect(logLine).toMatchObject({
+      level: "error",
+      msg: "Failed to persist streamed whisper request audit.",
+      requestId: "req-test-0001",
+    });
   });
 });
