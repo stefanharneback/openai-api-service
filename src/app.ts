@@ -2,9 +2,12 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { authenticateClient, authorizeAdmin } from "./lib/auth.js";
+import { log } from "./lib/logger.js";
+import { checkRateLimit } from "./lib/rateLimit.js";
 import { estimateCost } from "./lib/costing.js";
 import { env, newRequestId } from "./lib/env.js";
 import { HttpError, isHttpError } from "./lib/errors.js";
+import { purgeOldRecords } from "./lib/retention.js";
 import { buildOpenAiHeaders, filterHeadersForLedger, openAiBaseUrl } from "./lib/openai.js";
 import { listUsageForAdmin, listUsageForClient, recordRequest } from "./lib/repository.js";
 import { parseResponseSse } from "./lib/sse.js";
@@ -90,6 +93,7 @@ app.post("/v1/llm", async (c) => {
   const state = c.get("state");
   const auth = await authenticateClient(c.req.header("authorization"));
   state.auth = auth;
+  checkRateLimit(auth.clientId);
 
   const rawBody = await c.req.text();
   ensureJsonBodySize(rawBody);
@@ -187,9 +191,9 @@ app.post("/v1/llm", async (c) => {
         audioSource: null,
       });
     } catch (error) {
-      console.error("Failed to persist streamed request audit.", {
+      log.error("Failed to persist streamed request audit.", {
         requestId: state.requestId,
-        error,
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   })();
@@ -209,6 +213,7 @@ app.post("/v1/whisper", async (c) => {
   const state = c.get("state");
   const auth = await authenticateClient(c.req.header("authorization"));
   state.auth = auth;
+  checkRateLimit(auth.clientId);
 
   const formData = await c.req.formData();
   const model = String(formData.get("model") ?? "");
@@ -362,6 +367,12 @@ app.get("/v1/admin/usage", async (c) => {
     limit: query.limit,
     offset: query.offset,
   });
+});
+
+app.post("/v1/admin/retention", async (c) => {
+  authorizeAdmin(c.req.header("authorization"));
+  const purged = await purgeOldRecords();
+  return c.json({ purged });
 });
 
 app.onError(async (error, c) => {

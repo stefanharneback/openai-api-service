@@ -96,4 +96,56 @@ describe("parseResponseSse", () => {
     expect(result.errorCode).toBe("server_error");
     expect(result.errorMessage).toBe("Upstream exploded");
   });
+
+  it("skips malformed JSON data lines", () => {
+    const sseText = [
+      "event: response.output_text.delta",
+      "data: {not valid json",
+      "",
+      "event: response.output_text.done",
+      'data: {"type":"response.output_text.done","text":"OK"}',
+      "",
+    ].join("\n");
+
+    const result = parseResponseSse(sseText);
+    expect(result.responseText).toBe("OK");
+  });
+
+  it("extracts text from response.output_text.delta when no done events", () => {
+    const sseText = [
+      "event: response.output_text.delta",
+      'data: {"type":"response.output_text.delta","delta":"Hello "}',
+      "",
+      "event: response.output_text.delta",
+      'data: {"type":"response.output_text.delta","delta":"world"}',
+      "",
+    ].join("\n");
+
+    const result = parseResponseSse(sseText);
+    expect(result.responseText).toBe("Hello world");
+  });
+
+  it("handles response.incomplete terminal event", () => {
+    const sseText = [
+      "event: response.incomplete",
+      'data: {"type":"response.incomplete","response":{"id":"resp_5","status_details":{"type":"max_tokens","reason":"Token limit reached"},"usage":{"input_tokens":100,"output_tokens":50}}}',
+      "",
+    ].join("\n");
+
+    const result = parseResponseSse(sseText);
+    expect(result.terminalEvent).toBe("response.incomplete");
+    expect(result.errorCode).toBe("max_tokens");
+    expect(result.errorMessage).toBe("Token limit reached");
+  });
+
+  it("extracts text from payload.response path in extractTextFromEvent", () => {
+    const sseText = [
+      "event: response.output_text.done",
+      'data: {"type":"response.output_text.done","response":{"output_text":"From inner response"}}',
+      "",
+    ].join("\n");
+
+    const result = parseResponseSse(sseText);
+    expect(result.responseText).toBe("From inner response");
+  });
 });

@@ -9,6 +9,8 @@ const {
   listUsageForClient,
   listUsageForAdmin,
   fetchRemoteAudio,
+  checkRateLimit,
+  purgeOldRecords,
 } = vi.hoisted(() => ({
   authenticateClient: vi.fn(),
   authorizeAdmin: vi.fn(),
@@ -16,6 +18,8 @@ const {
   listUsageForClient: vi.fn(),
   listUsageForAdmin: vi.fn(),
   fetchRemoteAudio: vi.fn(),
+  checkRateLimit: vi.fn(),
+  purgeOldRecords: vi.fn(),
 }));
 
 vi.mock("../src/lib/auth.js", () => ({
@@ -54,6 +58,14 @@ vi.mock("../src/lib/urlFetch.js", () => ({
   fetchRemoteAudio,
 }));
 
+vi.mock("../src/lib/rateLimit.js", () => ({
+  checkRateLimit,
+}));
+
+vi.mock("../src/lib/retention.js", () => ({
+  purgeOldRecords,
+}));
+
 import app from "../src/app.js";
 
 const request = (path: string, init?: RequestInit) => {
@@ -84,6 +96,8 @@ describe("route success paths", () => {
     recordRequest.mockResolvedValue(undefined);
     listUsageForClient.mockResolvedValue([]);
     listUsageForAdmin.mockResolvedValue([]);
+    checkRateLimit.mockReturnValue({ remaining: 59 });
+    purgeOldRecords.mockResolvedValue(0);
     fetchRemoteAudio.mockResolvedValue({
       bytes: new Uint8Array([1, 2, 3]),
       fileName: "remote.wav",
@@ -223,7 +237,7 @@ describe("route success paths", () => {
   });
 
   it("logs streamed audit failures instead of leaving an unhandled rejection", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     recordRequest.mockRejectedValueOnce(new Error("db unavailable"));
 
     vi.mocked(fetch).mockResolvedValueOnce(
@@ -260,12 +274,13 @@ describe("route success paths", () => {
     await res.text();
     await waitForBackgroundWork();
 
-    expect(consoleError).toHaveBeenCalledWith(
-      "Failed to persist streamed request audit.",
-      expect.objectContaining({
-        requestId: "req-test-0001",
-      }),
-    );
+    expect(stderrSpy).toHaveBeenCalled();
+    const logLine = JSON.parse(String(stderrSpy.mock.calls[0][0]));
+    expect(logLine).toMatchObject({
+      level: "error",
+      msg: "Failed to persist streamed request audit.",
+      requestId: "req-test-0001",
+    });
   });
 
   it("proxies /v1/whisper uploads and records supported transcription cost", async () => {

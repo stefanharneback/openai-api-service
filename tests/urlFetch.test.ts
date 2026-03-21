@@ -60,3 +60,30 @@ describe("fetchRemoteAudio — DNS timeout", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("fetchRemoteAudio — IPv6 private addresses", () => {
+  it("rejects fc00::/7 (ULA) addresses", async () => {
+    lookupMock.mockResolvedValueOnce([{ address: "fd12::1", family: 6 }]);
+    await expect(fetchRemoteAudio("https://evil6.example.com/audio.wav")).rejects.toThrow(HttpError);
+  });
+
+  it("rejects ::1 loopback", async () => {
+    await expect(fetchRemoteAudio("http://[::1]/audio.wav")).rejects.toThrow(HttpError);
+  });
+});
+
+describe("fetchRemoteAudio — failed upstream response", () => {
+  it("throws when remote server returns non-OK status", async () => {
+    lookupMock.mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(new Response("Not Found", { status: 404 })),
+    );
+
+    await expect(fetchRemoteAudio("https://example.com/missing.wav")).rejects.toThrow(
+      /status 404/,
+    );
+
+    vi.unstubAllGlobals();
+  });
+});

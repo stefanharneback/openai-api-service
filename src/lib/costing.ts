@@ -1,3 +1,4 @@
+import { log } from "./logger.js";
 import type { CostBreakdown, UsageSnapshot } from "./types.js";
 
 type PricingCatalogEntry = {
@@ -7,7 +8,18 @@ type PricingCatalogEntry = {
 };
 
 // Pricing sourced from https://openai.com/api/pricing/ (snapshot date below).
-const pricingCatalogVersion = "2026-03-18";
+export const pricingCatalogVersion = "2026-03-18";
+
+const pricingCatalogAgeMs =
+  Date.now() - new Date(pricingCatalogVersion).getTime();
+const staleThresholdMs = 30 * 24 * 60 * 60 * 1000;
+
+if (pricingCatalogAgeMs > staleThresholdMs) {
+  log.warn("Pricing catalog is stale. Review https://openai.com/api/pricing/ and update costing.ts.", {
+    pricingVersion: pricingCatalogVersion,
+    staleDays: Math.floor(pricingCatalogAgeMs / (24 * 60 * 60 * 1000)),
+  });
+}
 
 const pricingCatalog: Record<string, PricingCatalogEntry> = {
   "gpt-5.4": {

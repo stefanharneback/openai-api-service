@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateCost } from "../src/lib/costing.js";
+import { estimateCost, pricingCatalogVersion } from "../src/lib/costing.js";
 import type { UsageSnapshot } from "../src/lib/types.js";
 
 const makeUsage = (overrides: Partial<UsageSnapshot> = {}): UsageSnapshot => ({
@@ -88,5 +88,11 @@ describe("estimateCost", () => {
   it("returns null for audio models (no pricing entry)", () => {
     expect(estimateCost("whisper-1", makeUsage())).toBeNull();
     expect(estimateCost("gpt-4o-mini-transcribe", makeUsage())).toBeNull();
+  });
+
+  it("pricing catalog version is less than 90 days old", () => {
+    const ageMs = Date.now() - new Date(pricingCatalogVersion).getTime();
+    const ageDays = ageMs / (24 * 60 * 60 * 1000);
+    expect(ageDays).toBeLessThan(90);
   });
 });
