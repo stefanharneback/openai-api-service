@@ -92,6 +92,9 @@ components:
             - type: object
               additionalProperties: true
         truncation: {}
+        conversation:
+          type: string
+          description: "Optional conversation ID for multi-turn context."
     ErrorResponse:
       type: object
       required: [error]

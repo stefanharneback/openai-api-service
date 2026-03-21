@@ -162,7 +162,7 @@ This repository now includes a layered AI baseline for VS Code, GitHub Copilot, 
 |------------------------|----------|---------------------------------------------------------------|
 | `OPENAI_API_KEY`       | Yes      | Server-side OpenAI credential.                                |
 | `DATABASE_URL`         | Yes      | PostgreSQL connection string.                                 |
-| `SERVICE_ADMIN_KEY`    | Yes      | Admin bearer token for `/v1/admin/usage`.                     |
+| `SERVICE_ADMIN_KEY`    | Yes      | Admin bearer token for `/v1/admin/*` endpoints.               |
 | `CRON_SECRET`          | No       | Bearer token accepted by `GET /v1/admin/retention` for Vercel Cron Jobs. |
 | `API_KEY_SALT`         | Yes      | Salt used to SHA-256 hash client API keys before DB lookup.   |
 | `RETENTION_DAYS`       | No       | Ledger retention window in days (default: 90).                |
@@ -185,7 +185,11 @@ This repository now includes a layered AI baseline for VS Code, GitHub Copilot, 
 
 See [openapi.yaml](openapi.yaml) for the full API contract including request/response schemas.
 
-`POST /v1/llm` and `POST /v1/whisper` return `429` after 60 requests per minute for the same client key within a single running server instance.
+`POST /v1/llm` and `POST /v1/whisper` enforce a 60-request-per-minute limit per client key using an in-memory sliding window. Because each Vercel serverless invocation runs in its own isolate, the window is scoped to a single running instance and is not shared across cold starts or concurrent instances.
+
+## Vercel cron
+
+`vercel.json` includes a daily cron job (3:00 AM UTC) that calls `GET /v1/admin/retention` to purge ledger rows older than `RETENTION_DAYS`. To authenticate the cron request, set `CRON_SECRET` in your Vercel project environment variables — the cron job sends this value as a bearer token.
 
 ## Responses passthrough policy
 
@@ -224,8 +228,11 @@ src/
     db.ts                PostgreSQL connection singleton
     env.ts               Environment variable parsing and hashing
     errors.ts            Structured HTTP error class
+    logger.ts            Zero-dependency structured JSON logger
     openai.ts            OpenAI request helpers
+    rateLimit.ts         Per-client sliding-window rate limiter
     repository.ts        PostgreSQL data access (insert / query)
+    retention.ts         Ledger data retention and purge logic
     security.ts          AES-256-GCM encryption for stored payloads
     sse.ts               SSE parser for streaming response usage
     types.ts             Shared TypeScript types
