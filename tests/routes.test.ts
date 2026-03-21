@@ -558,4 +558,190 @@ describe("route success paths", () => {
     expect(await res.json()).toEqual({ purged: 2 });
     expect(authorizeAdmin).toHaveBeenCalledWith("Bearer admin-key");
   });
+
+  it("returns 502 when upstream stream body is missing", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(null, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      }),
+    );
+
+    const res = await request("/v1/llm", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer client-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-5.4", input: "test", stream: true }),
+    });
+
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error.code).toBe("missing_upstream_stream");
+  });
+
+  it("records response.incomplete metadata for incomplete streams", async () => {
+    const sseText = [
+      "event: response.incomplete",
+      'data: {"type":"response.incomplete","response":{"id":"resp_inc","output":[],"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7},"status_details":{"type":"incomplete","reason":"max_output_tokens"}}}',
+      "",
+    ].join("\n");
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(sseText, {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-request-id": "up_inc_1",
+        },
+      }),
+    );
+
+    const res = await request("/v1/llm", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer client-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-5.4", input: "Incomplete", stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    await res.text();
+    await waitForBackgroundWork();
+
+    expect(recordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: "incomplete",
+        errorMessage: "max_output_tokens",
+      }),
+    );
+  });
+
+  it("returns 400 when whisper has neither file nor audio_url", async () => {
+    const formData = new FormData();
+    formData.set("model", "whisper-1");
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("missing_audio");
+  });
+
+  it("skips non-string form values in whisper forwarding", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ text: "ok" }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "x-request-id": "audio_skip_1",
+        },
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("model", "whisper-1");
+    formData.set("file", new File(["audio"], "clip.wav", { type: "audio/wav" }));
+    formData.set("extra_blob", new File(["extra"], "extra.bin"));
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(200);
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    const forwardedForm = (init as RequestInit).body as FormData;
+    expect(forwardedForm.get("extra_blob")).toBeNull();
+    expect(forwardedForm.get("model")).toBe("whisper-1");
+  });
+
+  it("records response.failed metadata when upstream status is OK but SSE signals failure", async () => {
+    const sseText = [
+      "event: response.failed",
+      'data: {"type":"response.failed","response":{"id":"resp_fail","output":[],"usage":{"input_tokens":3,"output_tokens":0,"total_tokens":3}},"error":{"code":"content_filter","message":"Content was filtered."}}',
+      "",
+    ].join("\n");
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(sseText, {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-request-id": "up_fail_ok_1",
+        },
+      }),
+    );
+
+    const res = await request("/v1/llm", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer client-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-5.4", input: "Fail me", stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    await res.text();
+    await waitForBackgroundWork();
+
+    expect(recordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: "content_filter",
+        errorMessage: "Content was filtered.",
+      }),
+    );
+  });
+
+  it("returns 400 when whisper model is missing", async () => {
+    const formData = new FormData();
+    formData.set("file", new File(["audio"], "clip.wav", { type: "audio/wav" }));
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("missing_model");
+  });
+
+  it("returns error without recording when auth has not been set", async () => {
+    authenticateClient.mockRejectedValueOnce(
+      new HttpError(401, "invalid_api_key", "API key is invalid."),
+    );
+
+    const res = await request("/v1/llm", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer bad-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-5.4", input: "test" }),
+    });
+
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid_api_key");
+    expect(recordRequest).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 for unknown routes", async () => {
+    const res = await request("/v1/nonexistent");
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error.code).toBe("not_found");
+    expect(body.error.message).toContain("/v1/nonexistent");
+  });
 });

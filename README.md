@@ -125,6 +125,57 @@ curl http://localhost:3000/v1/usage \
   -H "Authorization: Bearer <your-api-key-from-step-4>"
 ```
 
+## Production deployment
+
+### Database setup
+
+In production, provision a PostgreSQL 16+ instance (e.g. Vercel Postgres, Neon, Supabase, or any managed provider) and apply the schema manually:
+
+```bash
+psql "$DATABASE_URL" -f db/schema.sql
+```
+
+Then seed at least one client API key:
+
+```bash
+DATABASE_URL="<production-url>" API_KEY_SALT="<production-salt>" npx tsx db/seed.ts
+```
+
+Store the returned key securely — it cannot be retrieved later.
+
+### Vercel environment variables
+
+In the Vercel dashboard under **Settings → Environment Variables**, set:
+
+| Variable               | Notes                                                         |
+|------------------------|---------------------------------------------------------------|
+| `OPENAI_API_KEY`       | Your production OpenAI key.                                   |
+| `DATABASE_URL`         | Connection string for the production PostgreSQL instance.     |
+| `SERVICE_ADMIN_KEY`    | A strong random secret for admin endpoints.                   |
+| `API_KEY_SALT`         | Must match the salt used when seeding client keys.            |
+| `CRON_SECRET`          | Required for the daily retention cron job.                    |
+| `LEDGER_ENCRYPTION_KEY`| Recommended — 32-byte key (base64 or hex) for payload encryption. |
+| `RETENTION_DAYS`       | Optional, defaults to 90.                                     |
+
+### Monitoring and logs
+
+- **Vercel Logs:** Structured JSON logs (from `src/lib/logger.ts`) are emitted to stderr and appear in the Vercel dashboard under **Deployments → Functions → Logs**. Filter by `level`, `requestId`, or `msg` fields.
+- **Database queries:** Use the admin endpoint to inspect usage:
+  ```bash
+  curl https://your-app.vercel.app/v1/admin/usage?limit=50 \
+    -H "Authorization: Bearer $SERVICE_ADMIN_KEY"
+  ```
+- **Error tracking:** The `onError` handler returns structured `{ error: { code, message, requestId } }` payloads. Correlate errors across logs and the database using `requestId`.
+
+### Pre-go-live checklist
+
+- [ ] `LEDGER_ENCRYPTION_KEY` is set and tested.
+- [ ] `CRON_SECRET` is configured and the daily retention cron runs successfully.
+- [ ] Database connection is pooled and SSL-enabled.
+- [ ] At least one client API key is seeded.
+- [ ] `MODEL_ALLOWLIST` restricts models to only those you intend to offer.
+- [ ] Verify `GET /health` returns `200` after deployment.
+
 ## Running tests
 
 ```bash

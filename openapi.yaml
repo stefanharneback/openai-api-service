@@ -93,8 +93,27 @@ components:
               additionalProperties: true
         truncation: {}
         conversation:
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true
+          description: "Conversation ID (string) or conversation configuration object for multi-turn context."
+        context_management:
+          type: object
+          additionalProperties: true
+          description: "Context management configuration for conversation context trimming."
+        prompt_cache_key:
           type: string
-          description: "Optional conversation ID for multi-turn context."
+          description: "Key for caching prompt prefixes across requests."
+        prompt_cache_retention:
+          type: object
+          additionalProperties: true
+          description: "Prompt cache retention configuration (e.g. minutes)."
+        top_logprobs:
+          type: integer
+          minimum: 0
+          maximum: 20
+          description: "Number of top log probabilities to return per token."
     ErrorResponse:
       type: object
       required: [error]
