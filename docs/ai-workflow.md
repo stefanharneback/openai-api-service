@@ -51,7 +51,8 @@ Editor-specific files should refine or automate this guidance, not replace it.
 ## Maintenance cadence
 
 - Run a monthly quick pass using [maintenance-cadence.md](maintenance-cadence.md).
-- Run a quarterly deeper review of architecture, APIs, libraries, CI, docs, and AI workflow files.
+- Run a quarterly deeper review of architecture, APIs, libraries, AI/agent implementation patterns, CI, docs, and AI workflow files.
+- Treat the maintenance pass as incomplete until there is a dated report in `docs/maintenance-reviews/`.
 - For a solo project, this is preferred over heavier process such as `CODEOWNERS`.
 - The goal is steady evolution, not process for its own sake.
 
