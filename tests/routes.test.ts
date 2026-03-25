@@ -894,4 +894,31 @@ describe("route success paths", () => {
       requestId: "req-test-0001",
     });
   });
+
+  it("returns the configured model allowlist from GET /v1/models", async () => {
+    const res = await request("/v1/models", {
+      headers: { Authorization: "Bearer client-key" },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.models).toEqual(
+      expect.arrayContaining(["gpt-5.4", "gpt-5.4-mini"]),
+    );
+    expect(authenticateClient).toHaveBeenCalledOnce();
+  });
+
+  it("returns 401 from GET /v1/models when not authenticated", async () => {
+    authenticateClient.mockRejectedValueOnce(
+      new HttpError(401, "invalid_api_key", "API key is invalid."),
+    );
+
+    const res = await request("/v1/models", {
+      headers: { Authorization: "Bearer bad-key" },
+    });
+
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid_api_key");
+  });
 });

@@ -194,6 +194,13 @@ components:
       properties:
         purged:
           type: integer
+    ModelsResponse:
+      type: object
+      properties:
+        models:
+          type: array
+          items:
+            type: string
   paths:
   /health:
     get:
@@ -215,6 +222,24 @@ components:
                   now:
                     type: string
                     format: date-time
+  /v1/models:
+    get:
+      summary: List allowed models for the authenticated client
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Array of model IDs the gateway accepts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
+        '401':
+          description: Authentication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/llm:
     post:
       summary: Proxy an OpenAI Responses API request

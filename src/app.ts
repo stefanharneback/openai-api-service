@@ -99,6 +99,16 @@ app.get("/health", (c) => {
 });
 
 app.post("/v1/llm", async (c) => {
+  app.get("/v1/models", async (c) => {
+    await authenticateClient(c.req.header("authorization"));
+    const models =
+      env.modelAllowlist.size > 0
+        ? [...env.modelAllowlist]
+        : ["gpt-5.4", "gpt-5.4-mini"];
+    return c.json({ models });
+  });
+
+  app.post("/v1/llm", async (c) => {
   const state = c.get("state");
   const auth = await authenticateClient(c.req.header("authorization"));
   state.auth = auth;
