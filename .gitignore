@@ -32,3 +32,4 @@ Thumbs.db
 .github/copilot/settings.local.json
 
 .vercel
+.env*.local

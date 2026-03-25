@@ -2,8 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockSql = vi.hoisted(() => {
   const fn: any = vi.fn((..._args: unknown[]) => Promise.resolve([]));
-  fn.unsafe = vi.fn(() => Promise.resolve());
   fn.json = (v: unknown) => v;
+  // sql.begin(callback) — invoke callback with fn as the TransactionSql (tx),
+  // since the implementation casts tx to typeof sql and calls it as a template tag.
+  fn.begin = vi.fn(async (callback: (tx: unknown) => Promise<void>) => {
+    await callback(fn);
+  });
   return fn;
 });
 
@@ -69,9 +73,7 @@ describe("recordRequest", () => {
   it("wraps inserts in a begin/commit transaction", async () => {
     await recordRequest(makeRecord());
 
-    const unsafeCalls = mockSql.unsafe.mock.calls.map((c: unknown[]) => c[0]);
-    expect(unsafeCalls[0]).toBe("begin");
-    expect(unsafeCalls[unsafeCalls.length - 1]).toBe("commit");
+    expect(mockSql.begin).toHaveBeenCalledOnce();
   });
 
   it("performs two tagged template inserts (requests + request_usage)", async () => {
@@ -87,25 +89,22 @@ describe("recordRequest", () => {
     mockSql.mockRejectedValueOnce(new Error("unique constraint"));
 
     await expect(recordRequest(makeRecord())).rejects.toThrow("unique constraint");
-
-    const unsafeCalls = mockSql.unsafe.mock.calls.map((c: unknown[]) => c[0]);
-    expect(unsafeCalls).toContain("rollback");
-    expect(unsafeCalls).not.toContain("commit");
+    // Rollback is handled internally by postgres.js sql.begin(); we just verify the error propagates.
   });
 
   it("handles null auth gracefully", async () => {
     await recordRequest(makeRecord({ auth: null }));
 
-    // Should still succeed — the first tagged template call is the request insert
+    // Both inserts (requests + request_usage) should be executed via the transaction callback.
     expect(mockSql).toHaveBeenCalledTimes(2);
-    expect(mockSql.unsafe).toHaveBeenCalledWith("commit");
+    expect(mockSql.begin).toHaveBeenCalledOnce();
   });
 
   it("handles null cost gracefully", async () => {
     await recordRequest(makeRecord({ cost: null }));
 
     expect(mockSql).toHaveBeenCalledTimes(2);
-    expect(mockSql.unsafe).toHaveBeenCalledWith("commit");
+    expect(mockSql.begin).toHaveBeenCalledOnce();
   });
 });
 

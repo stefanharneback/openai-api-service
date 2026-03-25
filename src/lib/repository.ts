@@ -3,10 +3,11 @@ import { maybeEncryptJson } from "./security.js";
 import type { RequestLogRecord } from "./types.js";
 
 export const recordRequest = async (record: RequestLogRecord): Promise<void> => {
-  await sql.unsafe("begin");
-
-  try {
-    await sql`
+  await sql.begin(async (tx) => {
+      // postgres.js v3: TransactionSql lacks template literal call signatures in its type
+      // definitions, but IS callable at runtime. Cast to satisfy the type checker.
+      const t = tx as unknown as typeof sql;
+      await t`
       insert into requests (
         id,
         client_id,
@@ -43,16 +44,16 @@ export const recordRequest = async (record: RequestLogRecord): Promise<void> => 
         ${record.errorMessage},
         ${record.audioBytes},
         ${record.audioSource},
-        ${sql.json(record.payload.requestHeaders)},
-        ${sql.json(record.payload.responseHeaders)},
-        ${sql.json(maybeEncryptJson(record.payload.requestBody) as any)},
-        ${sql.json(maybeEncryptJson(record.payload.responseBody) as any)},
+          ${t.json(record.payload.requestHeaders)},
+          ${t.json(record.payload.responseHeaders)},
+          ${t.json(maybeEncryptJson(record.payload.requestBody) as any)},
+          ${t.json(maybeEncryptJson(record.payload.responseBody) as any)},
         ${record.payload.responseText},
         ${record.payload.responseSse}
       )
     `;
 
-    await sql`
+    await t`
       insert into request_usage (
         request_id,
         input_tokens,
@@ -79,12 +80,7 @@ export const recordRequest = async (record: RequestLogRecord): Promise<void> => 
         ${record.cost?.pricingVersion ?? null}
       )
     `;
-
-    await sql.unsafe("commit");
-  } catch (error) {
-    await sql.unsafe("rollback");
-    throw error;
-  }
+  });
 };
 
 export const listUsageForClient = async (
