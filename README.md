@@ -14,6 +14,7 @@ Vercel-first TypeScript gateway for OpenAI text and speech-to-text APIs with Pos
   │                              │
   │  POST /v1/llm ──────────►  OpenAI Responses API
   │  POST /v1/whisper ───────►  OpenAI Audio API
+  │  GET  /v1/models             │
   │  GET  /v1/usage              │
   │  GET  /v1/admin/usage        │
   │  GET  /v1/admin/retention    │
@@ -227,6 +228,7 @@ This repository now includes a layered AI baseline for VS Code, GitHub Copilot, 
 | Method | Path             | Auth          | Description                           |
 |--------|------------------|---------------|---------------------------------------|
 | GET    | `/health`        | None          | Health check + request ID.            |
+| GET    | `/v1/models`     | Client key    | List model IDs allowed by gateway policy. |
 | POST   | `/v1/llm`        | Client key    | Proxy to OpenAI Responses API.        |
 | POST   | `/v1/whisper`    | Client key    | Proxy to OpenAI Audio API.            |
 | GET    | `/v1/usage`      | Client key    | Usage history for the calling client. |
