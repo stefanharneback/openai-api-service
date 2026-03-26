@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createHash, randomBytes } from "node:crypto";
+import { describe, it, expect, vi } from "vitest";
+import { randomBytes } from "node:crypto";
 
 // We test the encryption module by bypassing the env dependency.
 // Since security.ts imports env at module level, we mock it.
@@ -78,9 +78,7 @@ describe("maybeDecryptJson error handling", () => {
       value: "corrupted_not_valid_base64!!!!",
     };
 
-    expect(() => maybeDecryptJson(corrupted)).toThrow(
-      "Failed to decrypt ledger payload",
-    );
+    expect(() => maybeDecryptJson(corrupted)).toThrow("Failed to decrypt ledger payload");
   });
 
   it("throws a descriptive error when auth tag is wrong", () => {
@@ -93,8 +91,6 @@ describe("maybeDecryptJson error handling", () => {
     };
     const tampered = { ...encrypted, tag: Buffer.from("wrong-tag-value!").toString("base64") };
 
-    expect(() => maybeDecryptJson(tampered)).toThrow(
-      "Failed to decrypt ledger payload",
-    );
+    expect(() => maybeDecryptJson(tampered)).toThrow("Failed to decrypt ledger payload");
   });
 });

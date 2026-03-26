@@ -50,7 +50,10 @@ const validateRemoteUrl = async (url: URL): Promise<void> => {
   const resolved = await Promise.race([
     lookup(url.hostname, { all: true }),
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new HttpError(400, "audio_fetch_failed", "DNS lookup timed out.")), dnsLookupTimeoutMs),
+      setTimeout(
+        () => reject(new HttpError(400, "audio_fetch_failed", "DNS lookup timed out.")),
+        dnsLookupTimeoutMs,
+      ),
     ),
   ]);
   if (resolved.some((entry) => isIP(entry.address) && isPrivateAddress(entry.address))) {

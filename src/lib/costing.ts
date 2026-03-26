@@ -8,17 +8,19 @@ type PricingCatalogEntry = {
 };
 
 // Pricing sourced from https://developers.openai.com/api/docs/pricing (snapshot date below).
-export const pricingCatalogVersion = "2026-07-22";
+export const pricingCatalogVersion = "2026-03-26";
 
-const pricingCatalogAgeMs =
-  Date.now() - new Date(pricingCatalogVersion).getTime();
+const pricingCatalogAgeMs = Date.now() - new Date(pricingCatalogVersion).getTime();
 const staleThresholdMs = 30 * 24 * 60 * 60 * 1000;
 
 if (pricingCatalogAgeMs > staleThresholdMs) {
-  log.warn("Pricing catalog is stale. Review https://openai.com/api/pricing/ and update costing.ts.", {
-    pricingVersion: pricingCatalogVersion,
-    staleDays: Math.floor(pricingCatalogAgeMs / (24 * 60 * 60 * 1000)),
-  });
+  log.warn(
+    "Pricing catalog is stale. Review https://openai.com/api/pricing/ and update costing.ts.",
+    {
+      pricingVersion: pricingCatalogVersion,
+      staleDays: Math.floor(pricingCatalogAgeMs / (24 * 60 * 60 * 1000)),
+    },
+  );
 }
 
 const pricingCatalog: Record<string, PricingCatalogEntry> = {
@@ -31,6 +33,16 @@ const pricingCatalog: Record<string, PricingCatalogEntry> = {
     inputPerMillion: 0.75,
     outputPerMillion: 4.5,
     cachedInputPerMillion: 0.075,
+  },
+  "gpt-5.4-nano": {
+    inputPerMillion: 0.2,
+    outputPerMillion: 1.25,
+    cachedInputPerMillion: 0.02,
+  },
+  "gpt-5.4-pro": {
+    inputPerMillion: 30,
+    outputPerMillion: 180,
+    cachedInputPerMillion: 0,
   },
   "gpt-5-mini-2025-08-07": {
     inputPerMillion: 0.75,
@@ -62,20 +74,15 @@ const toUsd = (tokens: number | null, ratePerMillion: number): number => {
   return Number(((tokens / 1_000_000) * ratePerMillion).toFixed(6));
 };
 
-export const estimateCost = (
-  model: string,
-  usage: UsageSnapshot,
-): CostBreakdown | null => {
+export const estimateCost = (model: string, usage: UsageSnapshot): CostBreakdown | null => {
   const pricing = pricingCatalog[model];
   if (!pricing) {
     return null;
   }
 
-  const hasTokenUsage = [
-    usage.inputTokens,
-    usage.outputTokens,
-    usage.cachedInputTokens,
-  ].some((value) => value !== null);
+  const hasTokenUsage = [usage.inputTokens, usage.outputTokens, usage.cachedInputTokens].some(
+    (value) => value !== null,
+  );
 
   if (!hasTokenUsage) {
     return null;
@@ -87,18 +94,13 @@ export const estimateCost = (
       : Math.max(usage.inputTokens - (usage.cachedInputTokens ?? 0), 0);
   const inputCostUsd = toUsd(uncachedInputTokens, pricing.inputPerMillion);
   const outputCostUsd = toUsd(usage.outputTokens, pricing.outputPerMillion);
-  const cachedInputCostUsd = toUsd(
-    usage.cachedInputTokens,
-    pricing.cachedInputPerMillion,
-  );
+  const cachedInputCostUsd = toUsd(usage.cachedInputTokens, pricing.cachedInputPerMillion);
 
   return {
     inputCostUsd,
     outputCostUsd,
     cachedInputCostUsd,
-    totalCostUsd: Number(
-      (inputCostUsd + outputCostUsd + cachedInputCostUsd).toFixed(6),
-    ),
+    totalCostUsd: Number((inputCostUsd + outputCostUsd + cachedInputCostUsd).toFixed(6)),
     pricingVersion: pricingCatalogVersion,
   };
 };

@@ -29,7 +29,7 @@ describe("estimateCost", () => {
     expect(result!.outputCostUsd).toBe(15);
     expect(result!.cachedInputCostUsd).toBe(0);
     expect(result!.totalCostUsd).toBe(17.5);
-    expect(result!.pricingVersion).toBe("2026-07-22");
+    expect(result!.pricingVersion).toBe("2026-03-26");
   });
 
   it("calculates cost for gpt-5.4-mini", () => {
@@ -44,6 +44,34 @@ describe("estimateCost", () => {
     expect(result!.outputCostUsd).toBe(2.25);
     expect(result!.cachedInputCostUsd).toBe(0.075);
     expect(result!.totalCostUsd).toBe(3.075);
+  });
+
+  it("calculates cost for gpt-5.4-nano", () => {
+    const usage = makeUsage({
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cachedInputTokens: 0,
+    });
+    const result = estimateCost("gpt-5.4-nano", usage);
+    expect(result).not.toBeNull();
+    expect(result!.inputCostUsd).toBe(0.2);
+    expect(result!.outputCostUsd).toBe(1.25);
+    expect(result!.cachedInputCostUsd).toBe(0);
+    expect(result!.totalCostUsd).toBe(1.45);
+  });
+
+  it("calculates cost for gpt-5.4-pro", () => {
+    const usage = makeUsage({
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cachedInputTokens: 500_000,
+    });
+    const result = estimateCost("gpt-5.4-pro", usage);
+    expect(result).not.toBeNull();
+    expect(result!.inputCostUsd).toBe(15);
+    expect(result!.outputCostUsd).toBe(180);
+    expect(result!.cachedInputCostUsd).toBe(0);
+    expect(result!.totalCostUsd).toBe(195);
   });
 
   it("keeps a legacy mini snapshot alias on the current pricing", () => {

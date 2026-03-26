@@ -4,10 +4,10 @@ import type { RequestLogRecord } from "./types.js";
 
 export const recordRequest = async (record: RequestLogRecord): Promise<void> => {
   await sql.begin(async (tx) => {
-      // postgres.js v3: TransactionSql lacks template literal call signatures in its type
-      // definitions, but IS callable at runtime. Cast to satisfy the type checker.
-      const t = tx as unknown as typeof sql;
-      await t`
+    // postgres.js v3: TransactionSql lacks template literal call signatures in its type
+    // definitions, but IS callable at runtime. Cast to satisfy the type checker.
+    const t = tx as unknown as typeof sql;
+    await t`
       insert into requests (
         id,
         client_id,
@@ -83,11 +83,7 @@ export const recordRequest = async (record: RequestLogRecord): Promise<void> => 
   });
 };
 
-export const listUsageForClient = async (
-  clientId: string,
-  limit: number,
-  offset: number,
-) => {
+export const listUsageForClient = async (clientId: string, limit: number, offset: number) => {
   return sql`
     select
       r.id,

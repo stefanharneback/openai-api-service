@@ -902,9 +902,7 @@ describe("route success paths", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.models).toEqual(
-      expect.arrayContaining(["gpt-5.4", "gpt-5.4-mini"]),
-    );
+    expect(body.models).toEqual(expect.arrayContaining(["gpt-5.4", "gpt-5.4-mini"]));
     expect(authenticateClient).toHaveBeenCalledOnce();
   });
 

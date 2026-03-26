@@ -23,6 +23,8 @@ This repository is a TypeScript service that exposes a narrow OpenAI gateway on 
 - Install: `npm ci`
 - Dev server: `npm run dev`
 - Type-check: `npm run check`
+- Lint: `npm run lint`
+- Format check: `npm run format`
 - Tests: `npm test`
 - Coverage: `npm run test:coverage`
 - Seed API key: `npm run db:seed`
@@ -37,6 +39,8 @@ This repository is a TypeScript service that exposes a narrow OpenAI gateway on 
 ## Done criteria
 
 - `npm run check` passes.
+- `npm run lint` passes.
+- `npm run format` passes.
 - `npm test` passes for code changes.
 - `npm run test:coverage` passes when tests or contracts change.
 - Docs and examples are updated when behavior changes.

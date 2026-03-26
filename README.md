@@ -183,6 +183,8 @@ In the Vercel dashboard under **Settings → Environment Variables**, set:
 npm test              # single run
 npm run test:watch    # watch mode
 npm run test:coverage # with V8 coverage
+npm run lint          # ESLint
+npm run format        # Prettier check
 ```
 
 ## CI and coverage on GitHub
@@ -190,7 +192,7 @@ npm run test:coverage # with V8 coverage
 This repository includes a GitHub Actions workflow at `.github/workflows/ci.yml`.
 
 - It runs on every push, on pull requests targeting `main`, and on manual dispatch.
-- It executes `npm run check` and `npm run test:coverage`.
+- It executes `npm run check`, `npm run lint`, `npm run format`, and `npm run test:coverage`.
 - Each workflow run publishes a coverage summary in the GitHub Actions run summary.
 - Each workflow run also uploads the full HTML coverage report as a downloadable artifact.
 

@@ -1,10 +1,6 @@
 type LogPayload = Record<string, unknown>;
 
-const formatEntry = (
-  level: string,
-  message: string,
-  data?: LogPayload,
-): string => {
+const formatEntry = (level: string, message: string, data?: LogPayload): string => {
   const entry: LogPayload = {
     level,
     msg: message,

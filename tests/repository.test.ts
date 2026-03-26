@@ -118,7 +118,7 @@ describe("listUsageForClient", () => {
 
     expect(mockSql).toHaveBeenCalledTimes(1);
     // Tagged template: verify the values array includes our parameters
-    const [strings, ...values] = mockSql.mock.calls[0];
+    const [, ...values] = mockSql.mock.calls[0];
     expect(values).toContain("client-1");
     expect(values).toContain(10);
     expect(values).toContain(0);
@@ -134,7 +134,7 @@ describe("listUsageForAdmin", () => {
     await listUsageForAdmin(25, 50);
 
     expect(mockSql).toHaveBeenCalledTimes(1);
-    const [strings, ...values] = mockSql.mock.calls[0];
+    const [, ...values] = mockSql.mock.calls[0];
     expect(values).toContain(25);
     expect(values).toContain(50);
   });

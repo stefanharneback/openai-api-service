@@ -26,8 +26,7 @@ const matchesExpectedToken = (token: string, expected: string | null): boolean =
   const actualBuffer = Buffer.from(token);
   const expectedBuffer = Buffer.from(expected);
   return (
-    actualBuffer.length === expectedBuffer.length &&
-    timingSafeEqual(actualBuffer, expectedBuffer)
+    actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer)
   );
 };
 
@@ -37,12 +36,14 @@ export const authenticateClient = async (
   const token = getBearerToken(authorizationHeader);
   const tokenHash = hashApiKey(token);
 
-  const rows = await sql<{
-    api_key_id: string;
-    client_id: string;
-    key_prefix: string;
-    revoked_at: string | null;
-  }[]>`
+  const rows = await sql<
+    {
+      api_key_id: string;
+      client_id: string;
+      key_prefix: string;
+      revoked_at: string | null;
+    }[]
+  >`
     select ak.id as api_key_id, ak.client_id, ak.key_prefix, ak.revoked_at
     from api_keys ak
     where ak.key_hash = ${tokenHash}

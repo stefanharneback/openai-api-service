@@ -20,11 +20,7 @@ const emptyUsage: UsageSnapshot = {
   totalTokens: null,
 };
 
-const terminalEvents = new Set([
-  "response.completed",
-  "response.failed",
-  "response.incomplete",
-]);
+const terminalEvents = new Set(["response.completed", "response.failed", "response.incomplete"]);
 
 const joinText = (parts: string[]): string | null => {
   return parts.length > 0 ? parts.join("") : null;
@@ -50,9 +46,7 @@ const extractTextFromEvent = (payload: any): string | null => {
   return extractResponseText(payload);
 };
 
-const extractEventError = (
-  payload: any,
-): { code: string | null; message: string | null } => {
+const extractEventError = (payload: any): { code: string | null; message: string | null } => {
   const candidate =
     payload?.error ??
     payload?.response?.error ??

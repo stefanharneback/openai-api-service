@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 // Mock env before importing the modules under test.
 vi.mock("../src/lib/env.js", () => ({
@@ -9,7 +9,13 @@ vi.mock("../src/lib/env.js", () => ({
   },
 }));
 
-import { llmBodySchema, usageQuerySchema, ensureAllowedModel, ensureJsonBodySize, ensureAudioSize } from "../src/lib/validation.js";
+import {
+  llmBodySchema,
+  usageQuerySchema,
+  ensureAllowedModel,
+  ensureJsonBodySize,
+  ensureAudioSize,
+} from "../src/lib/validation.js";
 import { HttpError } from "../src/lib/errors.js";
 
 describe("llmBodySchema", () => {

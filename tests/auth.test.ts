@@ -16,7 +16,7 @@ vi.mock("../src/lib/env.js", () => ({
 vi.mock("../src/lib/db.js", () => ({
   sql: Object.assign(
     // Tagged template function that returns mock rows.
-    (...args: unknown[]) => Promise.resolve([]),
+    (..._args: unknown[]) => Promise.resolve([]),
     { unsafe: () => Promise.resolve([]) },
   ),
 }));

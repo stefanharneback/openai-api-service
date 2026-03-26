@@ -12,7 +12,7 @@ import { purgeOldRecords } from "./lib/retention.js";
 import { buildOpenAiHeaders, filterHeadersForLedger, openAiBaseUrl } from "./lib/openai.js";
 import { listUsageForAdmin, listUsageForClient, recordRequest } from "./lib/repository.js";
 import { parseResponseSse } from "./lib/sse.js";
-import type { LedgerPayload, RequestLogRecord, RequestContextState } from "./lib/types.js";
+import type { LedgerPayload, RequestContextState } from "./lib/types.js";
 import { extractResponseText, extractUsage } from "./lib/usage.js";
 import { fetchRemoteAudio } from "./lib/urlFetch.js";
 import {
@@ -101,9 +101,7 @@ app.get("/health", (c) => {
 app.get("/v1/models", async (c) => {
   await authenticateClient(c.req.header("authorization"));
   const models =
-    env.modelAllowlist.size > 0
-      ? [...env.modelAllowlist]
-      : ["gpt-5.4", "gpt-5.4-mini"];
+    env.modelAllowlist.size > 0 ? [...env.modelAllowlist] : ["gpt-5.4", "gpt-5.4-mini"];
   return c.json({ models });
 });
 
@@ -152,8 +150,10 @@ app.post("/v1/llm", async (c) => {
         requestHeaders: {},
         responseHeaders,
       },
-      errorCode: upstreamResponse.ok ? null : responseJson?.error?.code ?? "openai_error",
-      errorMessage: upstreamResponse.ok ? null : responseJson?.error?.message ?? "OpenAI request failed.",
+      errorCode: upstreamResponse.ok ? null : (responseJson?.error?.code ?? "openai_error"),
+      errorMessage: upstreamResponse.ok
+        ? null
+        : (responseJson?.error?.message ?? "OpenAI request failed."),
       audioBytes: null,
       audioSource: null,
     });
@@ -318,8 +318,10 @@ app.post("/v1/whisper", async (c) => {
         requestHeaders: {},
         responseHeaders,
       },
-      errorCode: upstreamResponse.ok ? null : responseJson?.error?.code ?? "openai_error",
-      errorMessage: upstreamResponse.ok ? null : responseJson?.error?.message ?? "OpenAI request failed.",
+      errorCode: upstreamResponse.ok ? null : (responseJson?.error?.code ?? "openai_error"),
+      errorMessage: upstreamResponse.ok
+        ? null
+        : (responseJson?.error?.message ?? "OpenAI request failed."),
       audioBytes: audioBytes.byteLength,
       audioSource,
     });
@@ -465,7 +467,7 @@ app.onError(async (error, c) => {
           "validation_error",
           error.issues[0]?.message ?? "Request validation failed.",
         )
-    : new HttpError(500, "internal_error", "Internal server error.");
+      : new HttpError(500, "internal_error", "Internal server error.");
 
   const payload: LedgerPayload = {
     requestBody: null,

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 // Mock all external dependencies so the Hono app can be imported and exercised
 // without a real database or OpenAI key.

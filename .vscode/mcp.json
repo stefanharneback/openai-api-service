@@ -1,4 +1,18 @@
 {
-  "servers": {},
-  "inputs": []
+  "servers": {
+    "postgres": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "${input:database_url}"],
+      "env": {}
+    }
+  },
+  "inputs": [
+    {
+      "id": "database_url",
+      "type": "promptString",
+      "description": "PostgreSQL connection string (e.g. postgresql://oais:oais_local_dev@localhost:5432/oais)",
+      "default": "postgresql://oais:oais_local_dev@localhost:5432/oais"
+    }
+  ]
 }

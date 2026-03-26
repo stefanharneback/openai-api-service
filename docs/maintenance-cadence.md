@@ -6,6 +6,8 @@ Use this checklist to keep the project current without adding unnecessary proces
 
 - Run:
   - `npm run check`
+  - `npm run lint`
+  - `npm run format`
   - `npm test`
   - `npm run test:coverage`
   - `npm outdated`
@@ -20,7 +22,7 @@ Use this checklist to keep the project current without adding unnecessary proces
   - API guidance that affects passthrough, validation, streaming, or usage extraction
 - Review any other external APIs or platform dependencies used by the service for behavior, auth, or version drift.
 - Verify current external changes against official online sources when the reviewing tool supports web access.
-- Review GitHub Actions status and whether `.github/workflows/ci.yml` still reflects current best practice.
+- Review GitHub Actions status and whether `.github/workflows/ci.yml`, `.github/workflows/codeql.yml`, and `.github/workflows/dependency-review.yml` still reflect current best practice.
 - Review AI workflow files:
   - `AGENTS.md`
   - `.github/copilot-instructions.md`

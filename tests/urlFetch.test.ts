@@ -8,7 +8,9 @@ vi.mock("../src/lib/env.js", () => ({
 }));
 
 // Capture the mock for DNS so tests can override behavior per-test.
-const lookupMock = vi.hoisted(() => vi.fn().mockResolvedValue([{ address: "10.0.0.1", family: 4 }]));
+const lookupMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue([{ address: "10.0.0.1", family: 4 }]),
+);
 vi.mock("node:dns/promises", () => ({
   lookup: lookupMock,
 }));
@@ -69,7 +71,8 @@ describe("fetchRemoteAudio — redirects", () => {
 
     vi.stubGlobal(
       "fetch",
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce(
           new Response(null, {
             status: 302,
@@ -112,7 +115,9 @@ describe("fetchRemoteAudio — redirects", () => {
 describe("fetchRemoteAudio — IPv6 private addresses", () => {
   it("rejects fc00::/7 (ULA) addresses", async () => {
     lookupMock.mockResolvedValueOnce([{ address: "fd12::1", family: 6 }]);
-    await expect(fetchRemoteAudio("https://evil6.example.com/audio.wav")).rejects.toThrow(HttpError);
+    await expect(fetchRemoteAudio("https://evil6.example.com/audio.wav")).rejects.toThrow(
+      HttpError,
+    );
   });
 
   it("rejects ::1 loopback", async () => {
@@ -128,9 +133,7 @@ describe("fetchRemoteAudio — failed upstream response", () => {
       vi.fn().mockResolvedValueOnce(new Response("Not Found", { status: 404 })),
     );
 
-    await expect(fetchRemoteAudio("https://example.com/missing.wav")).rejects.toThrow(
-      /status 404/,
-    );
+    await expect(fetchRemoteAudio("https://example.com/missing.wav")).rejects.toThrow(/status 404/);
 
     vi.unstubAllGlobals();
   });

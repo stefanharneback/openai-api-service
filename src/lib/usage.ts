@@ -24,9 +24,10 @@ export const extractUsage = (payload: any): UsageSnapshot => {
     outputTokens,
     cachedInputTokens,
     reasoningTokens,
-    totalTokens: totalTokens ?? [inputTokens, outputTokens].every((value) => value !== null)
-      ? (inputTokens ?? 0) + (outputTokens ?? 0)
-      : null,
+    totalTokens:
+      (totalTokens ?? [inputTokens, outputTokens].every((value) => value !== null))
+        ? (inputTokens ?? 0) + (outputTokens ?? 0)
+        : null,
   };
 };
 
