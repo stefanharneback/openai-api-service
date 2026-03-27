@@ -201,6 +201,12 @@ components:
           type: array
           items:
             type: string
+        unrestricted:
+          type: boolean
+          description: |
+            When `true`, the gateway is not enforcing a model allowlist. The `models`
+            array is then an advertised starter catalog rather than a complete set of
+            accepted model IDs.
   paths:
   /health:
     get:
@@ -229,7 +235,7 @@ components:
         - bearerAuth: []
       responses:
         '200':
-          description: Array of model IDs the gateway accepts
+          description: Model catalog plus allowlist enforcement status
           content:
             application/json:
               schema:

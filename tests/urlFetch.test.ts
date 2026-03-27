@@ -38,6 +38,10 @@ describe("fetchRemoteAudio — private IP detection", () => {
   it("rejects a URL that resolves to a private IP", async () => {
     await expect(fetchRemoteAudio("https://evil.example.com/audio.wav")).rejects.toThrow(HttpError);
   });
+
+  it("rejects direct IPv4 unspecified targets", async () => {
+    await expect(fetchRemoteAudio("http://0.0.0.0/audio.wav")).rejects.toThrow(HttpError);
+  });
 });
 
 describe("fetchRemoteAudio — DNS timeout", () => {
@@ -122,6 +126,13 @@ describe("fetchRemoteAudio — IPv6 private addresses", () => {
 
   it("rejects ::1 loopback", async () => {
     await expect(fetchRemoteAudio("http://[::1]/audio.wav")).rejects.toThrow(HttpError);
+  });
+
+  it("rejects fe80::/10 link-local addresses", async () => {
+    lookupMock.mockResolvedValueOnce([{ address: "fe80::1", family: 6 }]);
+    await expect(fetchRemoteAudio("https://linklocal.example.com/audio.wav")).rejects.toThrow(
+      HttpError,
+    );
   });
 });
 

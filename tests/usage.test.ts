@@ -59,6 +59,32 @@ describe("extractUsage", () => {
     expect(result.totalTokens).toBe(30);
   });
 
+  it("preserves explicit totalTokens even when the sum differs", () => {
+    const payload = {
+      usage: {
+        input_tokens: 10,
+        output_tokens: 20,
+        total_tokens: 99,
+      },
+    };
+
+    const result = extractUsage(payload);
+    expect(result.totalTokens).toBe(99);
+  });
+
+  it("returns explicit totalTokens when category counts are missing", () => {
+    const payload = {
+      usage: {
+        total_tokens: 77,
+      },
+    };
+
+    const result = extractUsage(payload);
+    expect(result.inputTokens).toBeNull();
+    expect(result.outputTokens).toBeNull();
+    expect(result.totalTokens).toBe(77);
+  });
+
   it("returns null totalTokens when input/output are both missing", () => {
     const result = extractUsage({ usage: {} });
     expect(result.totalTokens).toBeNull();

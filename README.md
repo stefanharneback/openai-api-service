@@ -230,7 +230,7 @@ This repository now includes a layered AI baseline for VS Code, GitHub Copilot, 
 | Method | Path             | Auth          | Description                           |
 |--------|------------------|---------------|---------------------------------------|
 | GET    | `/health`        | None          | Health check + request ID.            |
-| GET    | `/v1/models`     | Client key    | List model IDs allowed by gateway policy. |
+| GET    | `/v1/models`     | Client key    | List the current model catalog and whether allowlist enforcement is active. |
 | POST   | `/v1/llm`        | Client key    | Proxy to OpenAI Responses API.        |
 | POST   | `/v1/whisper`    | Client key    | Proxy to OpenAI Audio API.            |
 | GET    | `/v1/usage`      | Client key    | Usage history for the calling client. |
@@ -239,6 +239,8 @@ This repository now includes a layered AI baseline for VS Code, GitHub Copilot, 
 | POST   | `/v1/admin/retention`| Admin key | Purge expired ledger rows manually.   |
 
 See [openapi.yaml](openapi.yaml) for the full API contract including request/response schemas.
+
+When `MODEL_ALLOWLIST` is unset, `GET /v1/models` returns an advertised starter catalog together with `"unrestricted": true`. In that mode, the gateway may accept additional model IDs beyond the listed catalog.
 
 `POST /v1/llm` and `POST /v1/whisper` enforce a 60-request-per-minute limit per client key using an in-memory sliding window. Because each Vercel serverless invocation runs in its own isolate, the window is scoped to a single running instance and is not shared across cold starts or concurrent instances.
 

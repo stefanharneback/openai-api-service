@@ -3,9 +3,9 @@ import { cors } from "hono/cors";
 import { ZodError } from "zod";
 
 import { authenticateClient, authorizeAdmin, authorizeRetention } from "./lib/auth.js";
+import { advertisedKnownModels, estimateCost } from "./lib/costing.js";
 import { log } from "./lib/logger.js";
 import { checkRateLimit } from "./lib/rateLimit.js";
-import { estimateCost } from "./lib/costing.js";
 import { env, newRequestId } from "./lib/env.js";
 import { HttpError, isHttpError } from "./lib/errors.js";
 import { purgeOldRecords } from "./lib/retention.js";
@@ -78,6 +78,66 @@ const parseJsonRequestBody = (rawBody: string): unknown => {
   }
 };
 
+const normalizeSecretFieldName = (key: string): string => {
+  return key.replace(/[^a-z0-9]/gi, "").toLowerCase();
+};
+
+const isSensitiveWhisperField = (key: string): boolean => {
+  const normalizedKey = normalizeSecretFieldName(key);
+  return (
+    normalizedKey === "authorization" ||
+    normalizedKey.endsWith("apikey") ||
+    normalizedKey.endsWith("adminkey") ||
+    normalizedKey.endsWith("bearertoken") ||
+    normalizedKey.endsWith("accesstoken") ||
+    normalizedKey === "token"
+  );
+};
+
+const appendLedgerEntry = (
+  target: Record<string, unknown>,
+  key: string,
+  value: string | { name: string; type: string; size: number },
+): void => {
+  const existing = target[key];
+  if (existing === undefined) {
+    target[key] = value;
+    return;
+  }
+
+  if (Array.isArray(existing)) {
+    existing.push(value);
+    return;
+  }
+
+  target[key] = [existing, value];
+};
+
+const snapshotWhisperRequestBody = (formData: FormData): Record<string, unknown> => {
+  const snapshot: Record<string, unknown> = {};
+
+  for (const [key, value] of formData.entries()) {
+    if (isSensitiveWhisperField(key)) {
+      continue;
+    }
+
+    if (typeof value === "string") {
+      appendLedgerEntry(snapshot, key, value);
+      continue;
+    }
+
+    if (value instanceof File) {
+      appendLedgerEntry(snapshot, key, {
+        name: value.name,
+        type: value.type,
+        size: value.size,
+      });
+    }
+  }
+
+  return snapshot;
+};
+
 app.use("*", cors());
 
 app.use("*", async (c, next) => {
@@ -100,9 +160,9 @@ app.get("/health", (c) => {
 
 app.get("/v1/models", async (c) => {
   await authenticateClient(c.req.header("authorization"));
-  const models =
-    env.modelAllowlist.size > 0 ? [...env.modelAllowlist] : ["gpt-5.4", "gpt-5.4-mini"];
-  return c.json({ models });
+  const unrestricted = env.modelAllowlist.size === 0;
+  const models = unrestricted ? advertisedKnownModels : [...env.modelAllowlist].sort();
+  return c.json({ models, unrestricted });
 });
 
 app.post("/v1/llm", async (c) => {
@@ -274,7 +334,7 @@ app.post("/v1/whisper", async (c) => {
   );
 
   for (const [key, value] of formData.entries()) {
-    if (key === "file" || key === "audio_url") {
+    if (key === "file" || key === "audio_url" || isSensitiveWhisperField(key)) {
       continue;
     }
 
@@ -311,7 +371,7 @@ app.post("/v1/whisper", async (c) => {
       usage,
       cost,
       payload: {
-        requestBody: Object.fromEntries(formData.entries()),
+        requestBody: snapshotWhisperRequestBody(formData),
         responseBody: responseJson,
         responseText: typeof responseJson?.text === "string" ? responseJson.text : null,
         responseSse: null,
@@ -354,7 +414,7 @@ app.post("/v1/whisper", async (c) => {
           usage: { ...emptyUsage },
           cost: null,
           payload: {
-            requestBody: Object.fromEntries(formData.entries()),
+            requestBody: snapshotWhisperRequestBody(formData),
             responseBody: { streamed: true },
             responseText: null,
             responseSse: sseText,
@@ -402,7 +462,7 @@ app.post("/v1/whisper", async (c) => {
     },
     cost: null,
     payload: {
-      requestBody: Object.fromEntries(formData.entries()),
+      requestBody: snapshotWhisperRequestBody(formData),
       responseBody: responseText,
       responseText,
       responseSse: null,

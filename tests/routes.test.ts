@@ -72,6 +72,7 @@ vi.mock("../src/lib/retention.js", () => ({
 }));
 
 import app from "../src/app.js";
+import { env } from "../src/lib/env.js";
 
 const request = (path: string, init?: RequestInit) => {
   return app.request(path, init);
@@ -695,6 +696,52 @@ describe("route success paths", () => {
     expect(forwardedForm.get("response_format")).toBe("diarized_json");
   });
 
+  it("drops secret-looking whisper fields from upstream forwarding and ledger snapshots", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ text: "safe" }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "x-request-id": "audio_secret_1",
+        },
+      }),
+    );
+
+    const formData = new FormData();
+    formData.set("model", "whisper-1");
+    formData.set("file", new File(["audio"], "clip.wav", { type: "audio/wav" }));
+    formData.set("apiKey", "client-secret-in-body");
+    formData.set("authorization", "Bearer should-not-forward");
+
+    const res = await request("/v1/whisper", {
+      method: "POST",
+      headers: { Authorization: "Bearer client-key" },
+      body: formData,
+    });
+
+    expect(res.status).toBe(200);
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    const forwardedForm = (init as RequestInit).body as FormData;
+    expect(forwardedForm.get("apiKey")).toBeNull();
+    expect(forwardedForm.get("authorization")).toBeNull();
+
+    expect(recordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          requestBody: {
+            model: "whisper-1",
+            file: {
+              name: "clip.wav",
+              size: 5,
+              type: "audio/wav",
+            },
+          },
+        }),
+      }),
+    );
+  });
+
   it("records response.failed metadata when upstream status is OK but SSE signals failure", async () => {
     const sseText = [
       "event: response.failed",
@@ -903,7 +950,28 @@ describe("route success paths", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.models).toEqual(expect.arrayContaining(["gpt-5.4", "gpt-5.4-mini"]));
+    expect(body.unrestricted).toBe(false);
     expect(authenticateClient).toHaveBeenCalledOnce();
+  });
+
+  it("reports unrestricted policy when the allowlist is empty", async () => {
+    const originalModels = [...env.modelAllowlist];
+    env.modelAllowlist.clear();
+
+    try {
+      const res = await request("/v1/models", {
+        headers: { Authorization: "Bearer client-key" },
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.unrestricted).toBe(true);
+      expect(body.models).toEqual(expect.arrayContaining(["gpt-5.4", "gpt-5.4-mini", "whisper-1"]));
+    } finally {
+      for (const model of originalModels) {
+        env.modelAllowlist.add(model);
+      }
+    }
   });
 
   it("returns 401 from GET /v1/models when not authenticated", async () => {

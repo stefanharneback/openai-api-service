@@ -66,6 +66,14 @@ const pricingCatalog: Record<string, PricingCatalogEntry> = {
   },
 };
 
+const snapshotAliasPattern = /-\d{4}-\d{2}-\d{2}$/;
+
+export const advertisedKnownModels = [...Object.keys(pricingCatalog), "whisper-1"]
+  .filter((modelId, index, models) => {
+    return !snapshotAliasPattern.test(modelId) && models.indexOf(modelId) === index;
+  })
+  .sort((left, right) => left.localeCompare(right));
+
 const toUsd = (tokens: number | null, ratePerMillion: number): number => {
   if (!tokens || ratePerMillion === 0) {
     return 0;

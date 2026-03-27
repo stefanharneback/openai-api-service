@@ -18,16 +18,15 @@ export const extractUsage = (payload: any): UsageSnapshot => {
     usage.output_tokens_details?.reasoning_tokens ?? usage.reasoning_tokens ?? null,
   );
   const totalTokens = asNumber(usage.total_tokens ?? null);
+  const computedTotalTokens =
+    inputTokens !== null && outputTokens !== null ? inputTokens + outputTokens : null;
 
   return {
     inputTokens,
     outputTokens,
     cachedInputTokens,
     reasoningTokens,
-    totalTokens:
-      (totalTokens ?? [inputTokens, outputTokens].every((value) => value !== null))
-        ? (inputTokens ?? 0) + (outputTokens ?? 0)
-        : null,
+    totalTokens: totalTokens ?? computedTotalTokens,
   };
 };
 
