@@ -2,11 +2,25 @@ import { sql } from "./db.js";
 import { maybeEncryptJson } from "./security.js";
 import type { RequestLogRecord } from "./types.js";
 
+type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+const asJsonValue = (value: unknown): JsonValue => {
+  return value as JsonValue;
+};
+
 export const recordRequest = async (record: RequestLogRecord): Promise<void> => {
   await sql.begin(async (tx) => {
     // postgres.js v3: TransactionSql lacks template literal call signatures in its type
     // definitions, but IS callable at runtime. Cast to satisfy the type checker.
     const t = tx as unknown as typeof sql;
+    const encryptedRequestBody = asJsonValue(maybeEncryptJson(record.payload.requestBody));
+    const encryptedResponseBody = asJsonValue(maybeEncryptJson(record.payload.responseBody));
     await t`
       insert into requests (
         id,
@@ -46,8 +60,8 @@ export const recordRequest = async (record: RequestLogRecord): Promise<void> => 
         ${record.audioSource},
           ${t.json(record.payload.requestHeaders)},
           ${t.json(record.payload.responseHeaders)},
-          ${t.json(maybeEncryptJson(record.payload.requestBody) as any)},
-          ${t.json(maybeEncryptJson(record.payload.responseBody) as any)},
+          ${t.json(encryptedRequestBody)},
+          ${t.json(encryptedResponseBody)},
         ${record.payload.responseText},
         ${record.payload.responseSse}
       )

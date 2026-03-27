@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { Mock } from "vitest";
 
 // Mock all external dependencies so the Hono app can be imported and exercised
 // without a real database or OpenAI key.
@@ -19,7 +20,12 @@ vi.mock("../src/lib/env.js", () => ({
 }));
 
 vi.mock("../src/lib/db.js", () => {
-  const mockSql: any = (..._args: unknown[]) => Promise.resolve([]);
+  type MockSql = Mock<(...args: unknown[]) => Promise<unknown[]>> & {
+    unsafe: Mock<() => Promise<unknown[]>>;
+    json: (value: unknown) => unknown;
+  };
+
+  const mockSql = vi.fn((..._args: unknown[]) => Promise.resolve([])) as MockSql;
   mockSql.unsafe = () => Promise.resolve([]);
   mockSql.json = (v: unknown) => v;
   return { sql: mockSql };
@@ -74,9 +80,6 @@ describe("POST /v1/llm — auth failures", () => {
 describe("POST /v1/llm — validation failures", () => {
   // We need a "valid" auth to reach validation. Mock the sql to return a row.
   it("returns 403 for a disallowed model (assuming auth passes)", async () => {
-    // Temporarily make sql return a valid key row.
-    const { sql } = await import("../src/lib/db.js");
-    (sql as any).mockImplementationOnce = undefined; // not straightforward
     // This tests only if we can reach the model check; since auth will fail first
     // with our mock that returns [], we verify auth check ordering instead.
     const res = await request("/v1/llm", {

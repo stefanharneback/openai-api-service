@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
 
 const mockSql = vi.hoisted(() => {
-  const fn: any = vi.fn((..._args: unknown[]) => Promise.resolve([]));
+  type MockSql = Mock<(...args: unknown[]) => Promise<unknown[]>> & {
+    json: (value: unknown) => unknown;
+    begin: Mock<(callback: (tx: unknown) => Promise<void>) => Promise<void>>;
+  };
+
+  const fn = vi.fn((..._args: unknown[]) => Promise.resolve([])) as MockSql;
   fn.json = (v: unknown) => v;
   // sql.begin(callback) — invoke callback with fn as the TransactionSql (tx),
   // since the implementation casts tx to typeof sql and calls it as a template tag.

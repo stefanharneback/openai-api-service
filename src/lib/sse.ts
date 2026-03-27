@@ -1,6 +1,12 @@
 import { extractResponseText, extractUsage } from "./usage.js";
 import type { UsageSnapshot } from "./types.js";
 
+type JsonRecord = Record<string, unknown>;
+
+const asRecord = (value: unknown): JsonRecord | null => {
+  return typeof value === "object" && value !== null ? (value as JsonRecord) : null;
+};
+
 // Parses SSE events emitted by the OpenAI Responses API streaming mode.
 // Events reference: https://platform.openai.com/docs/api-reference/responses-streaming/events
 type ParsedSseSummary = {
@@ -26,32 +32,35 @@ const joinText = (parts: string[]): string | null => {
   return parts.length > 0 ? parts.join("") : null;
 };
 
-const extractTextFromEvent = (payload: any): string | null => {
-  if (typeof payload?.text === "string") {
-    return payload.text;
+const extractTextFromEvent = (payload: unknown): string | null => {
+  const payloadRecord = asRecord(payload);
+  if (typeof payloadRecord?.text === "string") {
+    return payloadRecord.text;
   }
 
-  if (typeof payload?.delta === "string") {
-    return payload.delta;
+  if (typeof payloadRecord?.delta === "string") {
+    return payloadRecord.delta;
   }
 
-  if (payload?.item) {
-    return extractResponseText({ output: [payload.item] });
+  if (payloadRecord?.item) {
+    return extractResponseText({ output: [payloadRecord.item] });
   }
 
-  if (payload?.response) {
-    return extractResponseText(payload.response);
+  if (payloadRecord?.response) {
+    return extractResponseText(payloadRecord.response);
   }
 
   return extractResponseText(payload);
 };
 
-const extractEventError = (payload: any): { code: string | null; message: string | null } => {
+const extractEventError = (payload: unknown): { code: string | null; message: string | null } => {
+  const payloadRecord = asRecord(payload);
+  const responseRecord = asRecord(payloadRecord?.response);
   const candidate =
-    payload?.error ??
-    payload?.response?.error ??
-    payload?.status_details ??
-    payload?.response?.status_details ??
+    asRecord(payloadRecord?.error) ??
+    asRecord(responseRecord?.error) ??
+    asRecord(payloadRecord?.status_details) ??
+    asRecord(responseRecord?.status_details) ??
     null;
 
   if (!candidate) {
@@ -109,12 +118,13 @@ export const parseResponseSse = (sseText: string): ParsedSseSummary => {
       continue;
     }
 
-    let parsed: any;
+    let parsed: unknown;
     try {
       parsed = JSON.parse(data);
     } catch {
       continue;
     }
+    const parsedRecord = asRecord(parsed);
 
     if (eventName === "response.output_text.delta") {
       const deltaText = extractTextFromEvent(parsed);
@@ -139,11 +149,11 @@ export const parseResponseSse = (sseText: string): ParsedSseSummary => {
 
     if (terminalEvents.has(eventName ?? "")) {
       terminalEvent = eventName ?? null;
-      finalPayload = parsed?.response ?? parsed;
+      finalPayload = parsedRecord?.response ?? parsed;
     }
 
-    if (!finalPayload && parsed?.response?.usage) {
-      finalPayload = parsed.response;
+    if (!finalPayload && asRecord(parsedRecord?.response)?.usage !== undefined) {
+      finalPayload = parsedRecord?.response ?? null;
     }
 
     const eventError = extractEventError(parsed);
