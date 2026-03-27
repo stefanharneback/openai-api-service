@@ -31,6 +31,12 @@ export const checkRateLimit = (clientId: string): { remaining: number } => {
 
   pruneOld(window, now);
 
+  if (window.timestamps.length === 0 && clients.size > 1000) {
+    clients.delete(clientId);
+    window = { timestamps: [] };
+    clients.set(clientId, window);
+  }
+
   if (window.timestamps.length >= maxRequestsPerWindow) {
     throw new HttpError(
       429,

@@ -1,4 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+let sqlRows: unknown[] = [];
 
 // Mock env and db so auth module can be imported without real env vars or DB.
 vi.mock("../src/lib/env.js", () => ({
@@ -16,13 +18,22 @@ vi.mock("../src/lib/env.js", () => ({
 vi.mock("../src/lib/db.js", () => ({
   sql: Object.assign(
     // Tagged template function that returns mock rows.
-    (..._args: unknown[]) => Promise.resolve([]),
+    (..._args: unknown[]) => Promise.resolve(sqlRows),
     { unsafe: () => Promise.resolve([]) },
   ),
 }));
 
-import { getBearerToken, authorizeAdmin, authorizeRetention } from "../src/lib/auth.js";
+import {
+  getBearerToken,
+  authenticateClient,
+  authorizeAdmin,
+  authorizeRetention,
+} from "../src/lib/auth.js";
 import { HttpError } from "../src/lib/errors.js";
+
+beforeEach(() => {
+  sqlRows = [];
+});
 
 describe("getBearerToken", () => {
   it("extracts a token from a valid Authorization header", () => {
@@ -108,5 +119,57 @@ describe("authorizeRetention", () => {
       expect((e as HttpError).status).toBe(403);
       expect((e as HttpError).code).toBe("forbidden");
     }
+  });
+});
+
+describe("authenticateClient", () => {
+  it("returns auth context for a valid, non-revoked key", async () => {
+    sqlRows = [
+      {
+        api_key_id: "key-1",
+        client_id: "client-1",
+        key_prefix: "sk-test",
+        revoked_at: null,
+      },
+    ];
+    const result = await authenticateClient("Bearer valid-key");
+    expect(result).toEqual({
+      apiKeyId: "key-1",
+      clientId: "client-1",
+      keyPrefix: "sk-test",
+    });
+  });
+
+  it("throws 401 when no matching key exists", async () => {
+    sqlRows = [];
+    await expect(authenticateClient("Bearer unknown-key")).rejects.toThrow(HttpError);
+    try {
+      await authenticateClient("Bearer unknown-key");
+    } catch (e) {
+      expect((e as HttpError).status).toBe(401);
+      expect((e as HttpError).code).toBe("invalid_auth");
+    }
+  });
+
+  it("throws 401 when the key is revoked", async () => {
+    sqlRows = [
+      {
+        api_key_id: "key-2",
+        client_id: "client-2",
+        key_prefix: "sk-rev",
+        revoked_at: "2025-01-01T00:00:00Z",
+      },
+    ];
+    await expect(authenticateClient("Bearer revoked-key")).rejects.toThrow(HttpError);
+    try {
+      await authenticateClient("Bearer revoked-key");
+    } catch (e) {
+      expect((e as HttpError).status).toBe(401);
+      expect((e as HttpError).code).toBe("invalid_auth");
+    }
+  });
+
+  it("throws 401 when authorization header is missing", async () => {
+    await expect(authenticateClient(undefined)).rejects.toThrow(HttpError);
   });
 });

@@ -14,6 +14,7 @@ vi.mock("../src/lib/env.js", () => ({
     maxAudioBytes: 10 * 1024 * 1024,
     maxJsonBodyBytes: 256 * 1024,
     ledgerEncryptionKey: null,
+    retentionDays: 90,
   },
   hashApiKey: (key: string) => `hashed_${key}`,
   newRequestId: () => "req-test-0001",
@@ -25,8 +26,8 @@ vi.mock("../src/lib/db.js", () => {
     json: (value: unknown) => unknown;
   };
 
-  const mockSql = vi.fn((..._args: unknown[]) => Promise.resolve([])) as MockSql;
-  mockSql.unsafe = () => Promise.resolve([]);
+  const mockSql = vi.fn((..._args: unknown[]) => Promise.resolve([])) as unknown as MockSql;
+  mockSql.unsafe = (() => Promise.resolve([])) as unknown as Mock<() => Promise<unknown[]>>;
   mockSql.json = (v: unknown) => v;
   return { sql: mockSql };
 });

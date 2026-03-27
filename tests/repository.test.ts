@@ -7,7 +7,7 @@ const mockSql = vi.hoisted(() => {
     begin: Mock<(callback: (tx: unknown) => Promise<void>) => Promise<void>>;
   };
 
-  const fn = vi.fn((..._args: unknown[]) => Promise.resolve([])) as MockSql;
+  const fn = vi.fn((..._args: unknown[]) => Promise.resolve([])) as unknown as MockSql;
   fn.json = (v: unknown) => v;
   // sql.begin(callback) — invoke callback with fn as the TransactionSql (tx),
   // since the implementation casts tx to typeof sql and calls it as a template tag.

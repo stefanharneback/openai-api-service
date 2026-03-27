@@ -56,7 +56,15 @@ const parseOptionalSecret = (name: string): string | null => {
   return value ? value : null;
 };
 
+const parseRetentionDays = (): number => {
+  const raw = process.env.RETENTION_DAYS;
+  if (!raw) return 90;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 90;
+};
+
 export const env = {
+  retentionDays: parseRetentionDays(),
   openAiApiKey: requireEnv("OPENAI_API_KEY"),
   databaseUrl: requireEnv("DATABASE_URL"),
   serviceAdminKey: requireEnv("SERVICE_ADMIN_KEY"),

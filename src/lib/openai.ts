@@ -5,10 +5,7 @@ import { env } from "./env.js";
 // Audio API:     https://platform.openai.com/docs/api-reference/audio/createTranscription
 export const openAiBaseUrl = "https://api.openai.com/v1";
 
-export const buildOpenAiHeaders = (
-  contentType?: string,
-  extraHeaders?: Record<string, string>,
-): Headers => {
+export const buildOpenAiHeaders = (contentType?: string): Headers => {
   const headers = new Headers({
     Authorization: `Bearer ${env.openAiApiKey}`,
   });
@@ -16,10 +13,6 @@ export const buildOpenAiHeaders = (
   if (contentType) {
     headers.set("Content-Type", contentType);
   }
-
-  Object.entries(extraHeaders ?? {}).forEach(([key, value]) => {
-    headers.set(key, value);
-  });
 
   return headers;
 };

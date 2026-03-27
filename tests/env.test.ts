@@ -24,6 +24,7 @@ const cleanEnv = () => {
     "MAX_AUDIO_BYTES",
     "MAX_JSON_BODY_BYTES",
     "LEDGER_ENCRYPTION_KEY",
+    "RETENTION_DAYS",
   ]) {
     delete process.env[key];
   }
@@ -157,5 +158,36 @@ describe("newRequestId", () => {
     const { newRequestId } = await import("../src/lib/env.js");
     const id = newRequestId();
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
+});
+
+describe("retentionDays", () => {
+  beforeEach(() => {
+    cleanEnv();
+    vi.resetModules();
+  });
+
+  it("defaults to 90 when RETENTION_DAYS is not set", async () => {
+    setupEnv();
+    const { env } = await import("../src/lib/env.js");
+    expect(env.retentionDays).toBe(90);
+  });
+
+  it("parses a custom RETENTION_DAYS value", async () => {
+    setupEnv({ RETENTION_DAYS: "30" });
+    const { env } = await import("../src/lib/env.js");
+    expect(env.retentionDays).toBe(30);
+  });
+
+  it("falls back to 90 for invalid RETENTION_DAYS", async () => {
+    setupEnv({ RETENTION_DAYS: "not-a-number" });
+    const { env } = await import("../src/lib/env.js");
+    expect(env.retentionDays).toBe(90);
+  });
+
+  it("falls back to 90 for negative RETENTION_DAYS", async () => {
+    setupEnv({ RETENTION_DAYS: "-5" });
+    const { env } = await import("../src/lib/env.js");
+    expect(env.retentionDays).toBe(90);
   });
 });

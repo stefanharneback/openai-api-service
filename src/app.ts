@@ -519,13 +519,22 @@ app.get("/v1/admin/retention", async (c) => {
 
 app.onError(async (error, c) => {
   const state = c.get("state");
+
+  if (!isHttpError(error) && !(error instanceof ZodError)) {
+    log.error("Unhandled error.", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      requestId: state.requestId,
+    });
+  }
+
   const httpError = isHttpError(error)
     ? error
     : error instanceof ZodError
       ? new HttpError(
           400,
           "validation_error",
-          error.issues[0]?.message ?? "Request validation failed.",
+          error.issues.map((i) => i.message).join("; ") || "Request validation failed.",
         )
       : new HttpError(500, "internal_error", "Internal server error.");
 

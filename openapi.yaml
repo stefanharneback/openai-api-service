@@ -207,7 +207,7 @@ components:
             When `true`, the gateway is not enforcing a model allowlist. The `models`
             array is then an advertised starter catalog rather than a complete set of
             accepted model IDs.
-  paths:
+paths:
   /health:
     get:
       summary: Health check
