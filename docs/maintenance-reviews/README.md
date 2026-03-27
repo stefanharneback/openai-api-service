@@ -17,6 +17,7 @@ Example:
 - cadence
 - reviewer/tool used
 - scope
+- overall outcome (green / amber / red)
 - sources checked
 - commands run
 - findings
