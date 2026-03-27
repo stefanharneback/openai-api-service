@@ -2,13 +2,7 @@ import { sql } from "./db.js";
 import { maybeEncryptJson } from "./security.js";
 import type { RequestLogRecord } from "./types.js";
 
-type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 const asJsonValue = (value: unknown): JsonValue => {
   return value as JsonValue;
