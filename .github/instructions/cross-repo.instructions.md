@@ -5,22 +5,23 @@ This workspace contains three repositories that form a connected system:
 ## Repository dependency direction
 
 ```
-openai-api-service  →  openai-service-clients  →  multi-agent-task-solver
-(gateway)              (typed clients)              (MAUI task app)
+                     →  openai-service-clients
+openai-api-service
+                     →  multi-agent-task-solver
 ```
 
 - **openai-api-service** is the **source of truth** for the API contract (`openapi.yaml`), authentication, rate limiting, costing, and request routing.
 - **openai-service-clients** consumes the gateway's `openapi.yaml` to generate or maintain typed clients (web TS, .NET Core, .NET Web, MAUI).
-- **multi-agent-task-solver** consumes the .NET Core client from openai-service-clients and adds task orchestration, agent loop, and MAUI UI.
+- **multi-agent-task-solver** currently integrates directly with `openai-api-service` through its own Infrastructure gateway adapter and adds task orchestration, agent loop, and MAUI UI.
 
 ## Cross-repo change propagation
 
-When a change in one repo affects downstream repos, propagate in this order:
+When a change in this repo affects sibling repos, propagate based on the actual integration path:
 
 1. **API contract changes** (gateway `openapi.yaml`):
-   - Update `openapi.yaml` in openai-service-clients (run `scripts/sync-openapi.ps1` or `.sh`).
+   - Update `openapi.yaml` in openai-service-clients (run `scripts/sync-openapi.ps1` or `.sh`) when the typed clients should stay in sync.
    - Update affected client code and tests in openai-service-clients.
-   - If the .NET Core client's public API changes, update multi-agent-task-solver's Infrastructure layer.
+   - Update multi-agent-task-solver's Infrastructure gateway adapter, request/response mapping, and tests when gateway endpoint paths, request shapes, or response shapes change.
 
 2. **Pricing/model changes** (gateway `costing.ts` or `env.ts`):
    - Update the pricing catalog in the gateway.
@@ -29,7 +30,7 @@ When a change in one repo affects downstream repos, propagate in this order:
 
 3. **Authentication or security changes**:
    - All three repos treat security as first-class. Never commit secrets.
-   - Auth token handling flows from gateway policy through client transport to app UI.
+   - Auth token handling may need updates in openai-service-clients transport layers and in multi-agent-task-solver's direct gateway configuration.
 
 ## Shared quality expectations
 
